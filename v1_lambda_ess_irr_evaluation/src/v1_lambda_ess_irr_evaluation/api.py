@@ -71,6 +71,7 @@ async def async_handler(event, context: LambdaContext):
                 #     "result": None,
                 # }
                 logger.info("req_data", extra=req_data.model_dump())
+
                 result_data = req_data
 
                 response = LambdaResponseBuilder.success(

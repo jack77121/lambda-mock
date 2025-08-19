@@ -1,20 +1,32 @@
 # The python version to use is supplied as an arg from SST
 ARG PYTHON_VERSION=3.11
 
-# Use an official AWS Lambda base image for Python
-FROM public.ecr.aws/lambda/python:${PYTHON_VERSION}
+# Build stage with Amazon Linux 2023 for newer GCC
+FROM amazonlinux:2023 AS builder
 
-# # Ensure git is installed so we can install git based dependencies (such as sst)
+# Install Python 3.11 and build tools
 RUN yum update -y && \
-    yum install -y git gcc && \
+    yum install -y python3.11 python3.11-devel python3.11-pip \
+                   git gcc gcc-c++ make gfortran \
+                   blas-devel lapack-devel openblas-devel \
+                   pkgconfig cmake && \
     yum clean all
 
-# Install UV to manage your python runtime
+# Create python symlink for compatibility
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Install UV
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Install the dependencies to the lambda runtime
-COPY requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
-RUN uv pip install -r requirements.txt --target ${LAMBDA_TASK_ROOT} --system
+# Build dependencies
+COPY requirements.txt /tmp/requirements.txt
+RUN uv pip install -r /tmp/requirements.txt --target /opt/python --system
+
+# Runtime stage
+FROM public.ecr.aws/lambda/python:${PYTHON_VERSION}
+
+# Copy built dependencies from builder stage
+COPY --from=builder /opt/python ${LAMBDA_TASK_ROOT}
 
 # Perform any steps that you want here:
 # Example: pre-bake in model weights from huggingface to image
