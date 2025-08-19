@@ -1,0 +1,22 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "poxa calc service backend server"
+readme = "README.md"
+requires-python = "==3.11.9"
+dependencies = [
+    "shared",
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg",
+    "alembic",
+    "python-dotenv",
+    "pydantic-settings>=2.10.1",
+    "psycopg2-binary>=2.9.10",
+]
+
+
+[tool.uv.sources]
+shared = {workspace = true}
+sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }

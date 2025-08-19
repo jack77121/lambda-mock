@@ -1,0 +1,42 @@
+[project]
+name = "poxa-calc-backend"
+version = "0.1.0"
+description = "poxa calc service backend"
+requires-python = "==3.11.9"
+dependencies = [
+    "fastapi[standard]>=0.116.1",
+    "psycopg2-binary>=2.9.10",
+    "sqlacodegen>=3.1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+exclude = ["frontend*", "node_modules*"]
+
+[tool.uv.workspace]
+members = ["backend/server", "backend/shared", "v1_lambda_ess_irr_evaluation"]
+exclude = ["backend/__pycache__", "backend/**/__pycache__"]
+
+
+[tool.uv.sources]
+sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }
+
+
+
+
+# [project]
+# name = "backend"
+# version = "0.1.0"
+# description = "poxa calc service backend"
+# readme = "README.md"
+# requires-python = "==3.11.9"
+# dependencies = []
+
+
+
+# [tool.uv.workspace]
+# members = ["lambda","server", "shared"]
+
+# [tool.uv.sources]
+# sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }
+

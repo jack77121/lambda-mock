@@ -1,0 +1,19 @@
+[project]
+name = "v1_lambda_ess_irr_evaluation"
+version = "0.1.0"
+description = "ESS ROI Evaluation Lambda Function"
+requires-python = "==3.11.9"
+dependencies = [
+    "shared",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg",
+    "python-dotenv",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+shared = {workspace = true}
+sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }
