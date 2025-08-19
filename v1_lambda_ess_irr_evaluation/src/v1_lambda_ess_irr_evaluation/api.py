@@ -3,8 +3,15 @@ import json
 from typing import Any, Dict
 from uuid import uuid4
 
+from aws_lambda_powertools import Logger
+from aws_lambda_powertools.utilities.typing import LambdaContext
+
+from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import ESSEvaluationRequest
+
 from .database.connection import async_session_maker
-from .shared.models import Ans, Reqs
+from .shared.utils.lambda_response import LambdaResponseBuilder
+
+logger = Logger(service="lambda-ess-irr-evaluation")
 
 
 async def process_request(input_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -29,53 +36,51 @@ async def process_request(input_params: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-async def async_handler(event, context):
+async def async_handler(event, context: LambdaContext):
     """
     Async Lambda handler for ESS IRR evaluation.
     """
     try:
         # Parse input from the event
-        if isinstance(event.get("body"), str):
-            input_data = json.loads(event["body"])
-        else:
-            input_data = event.get("body", {})
+        req_data = ESSEvaluationRequest.model_validate_json(event.get("body", "{}"))
 
         # Use context manager for database session
         async with async_session_maker() as session:
             try:
-                # Create new request record
-                new_request = Reqs(input_params=input_data)
-                session.add(new_request)
-                await session.commit()
-                await session.refresh(new_request)
+                # # Create new request record
+                # new_request = Reqs(input_params=input_data)
+                # session.add(new_request)
+                # await session.commit()
+                # await session.refresh(new_request)
 
-                # Process the request (your evaluation logic here)
-                evaluation_result = await process_request(input_data)
+                # # Process the request (your evaluation logic here)
+                # evaluation_result = await process_request(input_data)
 
-                # Store the answer/result
-                new_answer = Ans(
-                    req_uuid=new_request.req_uuid, output_result=evaluation_result
+                # # Store the answer/result
+                # new_answer = Ans(
+                #     req_uuid=new_request.req_uuid, output_result=evaluation_result
+                # )
+                # session.add(new_answer)
+                # await session.commit()
+                # await session.refresh(new_answer)
+
+                # Return successful response using LambdaResponseBuilder
+                # result_data = {
+                #     "request_id": str(123),
+                #     "answer_id": str(321),
+                #     "result": None,
+                # }
+                logger.info("req_data", extra=req_data.model_dump())
+                result_data = req_data
+
+                response = LambdaResponseBuilder.success(
+                    data=result_data, message="ESS IRR 評估完成", status_code=200
                 )
-                session.add(new_answer)
-                await session.commit()
-                await session.refresh(new_answer)
 
-                # Return successful response
-                return {
-                    "statusCode": 200,
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
-                    },
-                    "body": json.dumps(
-                        {
-                            "success": True,
-                            "request_id": str(new_request.req_uuid),
-                            "answer_id": str(new_answer.ans_uuid),
-                            "result": evaluation_result,
-                        }
-                    ),
-                }
+                # Add CORS headers
+                response["headers"]["Access-Control-Allow-Origin"] = "*"
+
+                return response
 
             except Exception:
                 # Rollback will happen automatically with context manager
@@ -83,32 +88,18 @@ async def async_handler(event, context):
                 raise  # Re-raise to be caught by outer exception handler
 
     except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(
-                {"success": False, "error": "Invalid JSON in request body"}
-            ),
-        }
+        return LambdaResponseBuilder.json_decode_error()
 
     except Exception as e:
         # Log error (in production, use proper logging)
-        print(f"Error processing request: {str(e)}")
+        logger.error("處理請求失敗", extra={"error_message": str(e)})
 
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(
-                {
-                    "success": False,
-                    "error": "Internal server error",
-                    "error_message": str(e),
-                }
-            ),
-        }
+        return LambdaResponseBuilder.error(
+            message="伺服器內部錯誤", data={"error_message": str(e)}, status_code=500
+        )
 
 
-def handler(event, context):
+def handler(event: dict[str, any], context: LambdaContext) -> dict[str, any]:
     """
     Lambda handler entry point - wraps async handler.
     """
@@ -119,5 +110,5 @@ def handler(event, context):
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    
+
     return loop.run_until_complete(async_handler(event, context))

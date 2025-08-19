@@ -8,6 +8,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg",
     "python-dotenv",
+    "aws-lambda-powertools>=3.19.0",
 ]
 
 [build-system]
