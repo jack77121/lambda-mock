@@ -81,32 +81,28 @@ class ContractReduction(BaseModel):
 class EnergySystem(BaseModel):
     """儲能系統設定"""
 
-    單台_PCS_標稱功率: float = Field(
-        ..., alias="單台 PCS 標稱功率", description="單台 PCS 標稱功率"
-    )
-    單台_儲能容量: float = Field(
-        ..., alias="單台 儲能容量", description="單台 儲能容量"
-    )
+    單台PCS標稱功率: float = Field(..., description="單台 PCS 標稱功率")
+    單台儲能容量: float = Field(..., description="單台 儲能容量")
     台數: Optional[int] = Field(None, description="台數")
     PCS_標稱功率: Optional[float] = Field(
         None, alias="PCS 標稱功率", description="PCS 標稱功率"
     )
     儲能容量: Optional[float] = Field(None, description="儲能容量")
     實際建置容量: Optional[float] = Field(None, description="實際建置容量")
-    電能損失率_Round_Trip: float = Field(
-        ..., alias="電能損失率(Round Trip)", description="電能損失率"
+    電能損失率RoundTrip: float = Field(
+        ..., alias="電能損失率(RoundTrip)", description="電能損失率"
     )
     儲能健康度年衰減率: float = Field(..., description="儲能健康度年衰減率")
     SOC上限: float = Field(..., description="SOC上限")
     SOC下限: float = Field(..., description="SOC下限")
     每日最大循環次數: int = Field(..., description="每日最大循環次數")
 
-    @field_validator("單台_PCS_標稱功率")
+    @field_validator("單台PCS標稱功率")
     @classmethod
     def validate_single_pcs_power(cls, v: float) -> float:
         return v
 
-    @field_validator("單台_儲能容量")
+    @field_validator("單台儲能容量")
     @classmethod
     def validate_single_storage_capacity(cls, v: float) -> float:
         return v
@@ -336,10 +332,33 @@ class AdvancedConfig(BaseModel):
         return v
 
 
+class AMICurveDataPoint(BaseModel):
+    hour: str = Field(..., description="時間")
+    summer_monday: float = Field(..., description="夏月週一")
+    summer_tuesday: float = Field(..., description="夏月週二")
+    summer_wednesday: float = Field(..., description="夏月週三")
+    summer_thursday: float = Field(..., description="夏月週四")
+    summer_friday: float = Field(..., description="夏月週五")
+    summer_saturday: float = Field(..., description="夏月週六")
+    summer_sunday: float = Field(..., description="夏月週日")
+    non_summer_monday: float = Field(..., description="非夏月週一")
+    non_summer_tuesday: float = Field(..., description="非夏月週二")
+    non_summer_wednesday: float = Field(..., description="非夏月週三")
+    non_summer_thursday: float = Field(..., description="非夏月週四")
+    non_summer_friday: float = Field(..., description="非夏月週五")
+    non_summer_saturday: float = Field(..., description="非夏月週六")
+    non_summer_sunday: float = Field(..., description="非夏月週日")
+
+
 class ESSEvaluationRequest(BaseModel):
     """ESS評估請求"""
 
     config: AdvancedConfig = Field(..., description="進階配置")
+    manual_curve_data: Optional[AMICurveDataPoint] = Field([], description="手拉負載")
+    ami_uploaded_raw_data: Optional[AMICurveDataPoint] = Field(
+        [], description="上傳負載"
+    )
+    units: Optional[str] = Field("", description="購買台數")
     contract_capacity_old: ContractCapacity = Field(..., description="原契約容量")
     contract_capacity_new: ContractCapacity = Field(..., description="新契約容量")
     priceType: str = Field(..., description="電價類別")
@@ -362,6 +381,16 @@ class ESSEvaluationRequest(BaseModel):
     @field_validator("config")
     @classmethod
     def validate_config(cls, v: AdvancedConfig) -> AdvancedConfig:
+        return v
+
+    @field_validator("manual_curve_data")
+    @classmethod
+    def validate_manual_curve_data(cls, v: AMICurveDataPoint) -> AMICurveDataPoint:
+        return v
+
+    @field_validator("units")
+    @classmethod
+    def validate_units(cls, v: str) -> str:
         return v
 
     @field_validator("contract_capacity_old")

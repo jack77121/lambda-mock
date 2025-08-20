@@ -3,8 +3,10 @@ import json
 from typing import Any, Dict
 from uuid import uuid4
 
+import pandas as pd
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from core.summary_generator import run_all_simulations
 
 from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import ESSEvaluationRequest
 
@@ -43,6 +45,7 @@ async def async_handler(event, context: LambdaContext):
     try:
         # Parse input from the event
         req_data = ESSEvaluationRequest.model_validate_json(event.get("body", "{}"))
+        df_tou_2025 = pd.read_csv("tou_data_simple_2025.csv")
 
         # Use context manager for database session
         async with async_session_maker() as session:
@@ -72,10 +75,26 @@ async def async_handler(event, context: LambdaContext):
                 # }
                 logger.info("req_data", extra=req_data.model_dump())
 
-                result_data = req_data
+                result = run_all_simulations(
+                    config=req_data.config,
+                    json_ami_hourly_update=req_data.manual_curve_data,
+                    json_ami_15min=req_data.ami_uploaded_raw_data,
+                    ID=req_data.chartId,
+                    contract_capacity_old=req_data.contract_capacity_old,
+                    contract_capacity_new=req_data.contract_capacity_new,
+                    tou_program=req_data.priceType,
+                    industry_class=req_data.industry,
+                    tariff_adjust_factor=req_data.tariff,
+                    df_tou_2025=df_tou_2025,
+                    units=req_data.units.split(","),
+                    dr方案選項=req_data.dr方案選項,
+                    即時備轉方案選項=req_data.即時備轉方案選項,
+                    用電大戶方案=req_data.用電大戶方案,
+                    year=req_data.year,
+                )
 
                 response = LambdaResponseBuilder.success(
-                    data=result_data, message="ESS IRR 評估完成", status_code=200
+                    data=result, message=None, status_code=200
                 )
 
                 # Add CORS headers
