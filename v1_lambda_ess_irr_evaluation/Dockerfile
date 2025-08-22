@@ -1,37 +1,29 @@
 # The python version to use is supplied as an arg from SST
 ARG PYTHON_VERSION=3.11
 
-# Build stage with Amazon Linux 2023 for newer GCC
-FROM amazonlinux:2023 AS builder
-
-# Install Python 3.11 and build tools
-RUN yum update -y && \
-    yum install -y python3.11 python3.11-devel python3.11-pip \
-                   git gcc gcc-c++ make gfortran \
-                   blas-devel lapack-devel openblas-devel \
-                   pkgconfig cmake && \
-    yum clean all
-
-# Create python symlink for compatibility
-RUN ln -sf /usr/bin/python3.11 /usr/bin/python
-
-# Install UV
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
-# Build dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN uv pip install -r /tmp/requirements.txt --target /opt/python --system
-
-# Runtime stage
+# Use an official AWS Lambda base image for Python
 FROM public.ecr.aws/lambda/python:${PYTHON_VERSION}
 
-# Copy built dependencies from builder stage
-COPY --from=builder /opt/python ${LAMBDA_TASK_ROOT}
+# Install build tools for numpy compilation
+RUN yum update -y && \
+    yum install -y git gcc gcc-c++ make gfortran \
+                   blas-devel lapack-devel python3-devel && \
+    yum clean all
 
-# Perform any steps that you want here:
-# Example: pre-bake in model weights from huggingface to image
+# Install UV to manage your python runtime
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Copy the rest of the code
-COPY . ${LAMBDA_TASK_ROOT}
+# Install the dependencies to the lambda runtime
+COPY requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN uv pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt --target ${LAMBDA_TASK_ROOT} --system --only-binary=:all:
+
+# Copy the source code with correct structure
+COPY . ${LAMBDA_TASK_ROOT}/
+# COPY ./src/v1_lambda_ess_irr_evaluation/shared/core/tou_data_simple_2025.csv ${LAMBDA_TASK_ROOT}/v1_lambda_ess_irr_evaluation/shared/core/tou_data_simple_2025.csv
+# COPY ./src/v1_lambda_ess_irr_evaluation/shared/core/ami_data.db ${LAMBDA_TASK_ROOT}/v1_lambda_ess_irr_evaluation/shared/core/ami_data.db
+
+# Clean up any numpy source directories that might cause conflicts
+RUN find ${LAMBDA_TASK_ROOT} -name "numpy-*" -type d -exec rm -rf {} + 2>/dev/null || true
+RUN find ${LAMBDA_TASK_ROOT} -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # No need to configure the handler or entrypoint - SST will do that

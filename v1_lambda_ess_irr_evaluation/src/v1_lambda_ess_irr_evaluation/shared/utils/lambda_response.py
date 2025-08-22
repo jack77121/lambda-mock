@@ -9,9 +9,7 @@ T = TypeVar("T")
 
 class LambdaResponseBuilder:
     @staticmethod
-    def success(
-        data: Any, message: str = None, status_code: int = 200
-    ) -> Dict[str, Any]:
+    def success(data: Any, message: str = "", status_code: int = 200) -> Dict[str, Any]:
         response = ApiResponseBase(success=True, message=message, data=data)
 
         return {

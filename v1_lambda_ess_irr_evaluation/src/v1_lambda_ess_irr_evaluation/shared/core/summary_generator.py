@@ -1,12 +1,24 @@
 import copy
+import os
 import sqlite3
+import time
 from itertools import product
 
-from . import calculator
-from . import config_loader
 import numpy as np
 import numpy_financial as npf
 import pandas as pd
+
+from ...utils.logger import logger
+from . import calculator, config_loader
+
+
+def get_ami_db_path():
+    """Get the correct path to ami_data.db file"""
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    db_path = os.path.join(script_dir, "ami_data.db")
+    return db_path
+
 
 # === 全域母表：所有可能出現的行 ===
 ALL_ROW_LABELS = [
@@ -622,6 +634,8 @@ def run_simulation(
     lc_program=None,
     year=15,
 ):
+    start_time = time.time()
+    logger.info("[run_simulation]")
     config["儲能系統"]["台數"] = unit
 
     if mode == "energy_dr":
@@ -696,6 +710,9 @@ def run_simulation(
     else:
         result["用電大戶方案"] = "-"
 
+    end_time = time.time()
+    execution_time = end_time - start_time
+    logger.info("[run_simulation]", extra={"completed in": f"{execution_time:.2f} sec"})
     return result, df_summary
 
 
@@ -916,11 +933,11 @@ def run_all_simulations(
 
     # 依據手動曲線更新，如果有的話，直接照著更新的曲線來縮放 AMI 數據，否則照契約容量縮放
     # 原始資料是15分鐘，負載生成跟手拉是小時資料，所以需要縮放
-    if json_ami_hourly_update is not None:
+    if (json_ami_hourly_update is not None) and (len(json_ami_hourly_update) > 0):
         print("[debug] 2. 使用手動曲線更新縮放 AMI 數據")
 
         # 重新连接到 SQLite 数据库
-        conn = sqlite3.connect("ami_data.db")
+        conn = sqlite3.connect(get_ami_db_path())
 
         # 查询 'ID'
         query = "SELECT * FROM week_all WHERE ID = " + str(ID)
@@ -934,7 +951,7 @@ def run_all_simulations(
         df_ami_raw = config_loader.scale_15min_by_hour(
             df_ami_raw, json_ami_hourly_update
         )
-    elif json_ami_15min is not None:
+    elif (json_ami_15min is not None) and (len(json_ami_15min) > 0):
         print("[debug] 3. 使用手動曲線更新縮放 AMI 數據")
         df_ami_raw = config_loader.ami_15min_json_to_df(json_ami_15min)
 
@@ -942,15 +959,21 @@ def run_all_simulations(
         # 依據輸入契約容量，縮放 AMI 數據，直接用最大負載作為契約容量，與負載生成時一樣
         # origin_capacity = int(df_ami_raw["value"].max().round() / 0.9)
         print("[debug] 1. 使用契約容量縮放 AMI 數據")
-
+        start_time = time.time()
+        logger.info("start reading ami db")
         # 重新连接到 SQLite 数据库
-        conn = sqlite3.connect("ami_data.db")
+        conn = sqlite3.connect(get_ami_db_path())
 
         # 查询 'ID'
         query = "SELECT * FROM week_all WHERE ID = " + str(ID)
         df_ami_raw = pd.read_sql(query, conn)
         # 关闭数据库连接
         conn.close()
+        end_time = time.time()
+        logger.info(
+            "finished reading ami db",
+            extra={"execution_time": f"{(end_time-start_time):.2f}"},
+        )
         df_ami_raw["variable"] = pd.to_datetime(
             df_ami_raw["variable"], format="%H:%M:%S.%f"
         ).dt.strftime("%H:%M")
@@ -975,7 +998,7 @@ def run_all_simulations(
     if units is None:
         台數選項 = calculator.generate_fixed_step_combinations(
             int(main_contract_capacity * 0.8),
-            pcs_power=config["儲能系統"]["單台 PCS 標稱功率"],
+            pcs_power=int(config["儲能系統"]["單台 PCS 標稱功率"]),
             max_groups=4,
         )
     else:

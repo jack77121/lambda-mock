@@ -919,7 +919,13 @@ def get_contract_capacity_parameter(
     return pd.DataFrame(contract_data)
 
 
-def calculate_annual_basic_fee(rate_table, tou_program, contract_capacities):
+def calculate_annual_basic_fee(
+    rate_table,
+    tou_program,
+    contract_capacities,
+    number_of_summer_months=None,
+    number_of_not_summer_months=None,
+):
     """
     根據電價表與契約容量，依月份計算夏月與非夏月的基本電費，並支援名稱對應與折扣邏輯。
 
@@ -940,11 +946,14 @@ def calculate_annual_basic_fee(rate_table, tou_program, contract_capacities):
         base_fee = rate_table[(tou_program, "summer")]["基本電費"]["按戶計收"] * 12
         return {"年總基本電費": round(base_fee, 2)}
 
-    # 判斷夏月月數
-    number_of_summer_months = (
-        5 if "高壓" in tou_program or "特高壓" in tou_program else 4
-    )
-    number_of_not_summer_months = 12 - number_of_summer_months
+    # 沒有給夏月跟非夏月個數時，用電價方案判斷夏月月數
+    # 模擬負載：12月自動判斷分割
+    # AMI負載：依據資料去計算
+    if number_of_summer_months is None or number_of_not_summer_months is None:
+        number_of_summer_months = (
+            5 if "高壓" in tou_program or "特高壓" in tou_program else 4
+        )
+        number_of_not_summer_months = 12 - number_of_summer_months
 
     # 欄位對應表：使用者輸入名稱 → 依電價型態映射的實際欄位
     field_alias_mapping = {
@@ -1194,11 +1203,30 @@ def calculator_annual_cost_ami_365(
     )
     df_ami.rename(columns={"time": "timestamp", "value": "load_kw"}, inplace=True)
 
+    # 取出起始跟結束的日期 df_ami_long
+    start_date = df_ami["datetime"].iloc[0].date().strftime("%Y-%m-%d")
+    end_date = df_ami["datetime"].iloc[-1].date().strftime("%Y-%m-%d")
+    # print(f"AMI 資料起始日期: {start_date}, 結束日期: {end_date}")
+
+    # 計算夏月跟非夏月的月數
+    # print(df_ami)
+    number_of_summer_months = round(
+        df_ami[df_ami["is_summer"] == 1].shape[0] / (30.4 * 96), 2
+    )
+    number_of_not_summer_months = round(
+        df_ami[df_ami["is_summer"] == 0].shape[0] / (30.4 * 96), 2
+    )
+    print(
+        f"[debug] 夏月月數: {number_of_summer_months}, 非夏月月數: {number_of_not_summer_months}"
+    )
+
     # 2. 計算基本電費及超約費用
     result = calculate_annual_basic_fee(
         rate_table=price_dict,
         tou_program=tou_program,
         contract_capacities=contract_capacity_old,
+        number_of_summer_months=number_of_summer_months,
+        number_of_not_summer_months=number_of_not_summer_months,
     )
 
     print(f"[debug] 基本電費計算結果: {result}")
@@ -1218,6 +1246,8 @@ def calculator_annual_cost_ami_365(
 
     annual_cost_summary = {
         "資料天數": len(df_ami["datetime"].dt.date.unique()),
+        "起始日期": start_date,
+        "結束日期": end_date,
         "年用電度數(度)": total_annual_kwh,
         "年基本電費(元)": cost_Contract_Capacity,
         "年流動電費(元)": total_annual_fee,
@@ -1356,7 +1386,6 @@ def calculator_annual_cost_ami_365(
         )
         df_ami_contract2 = df_ami_contract[df_ami_contract["over_contract_kw"] > 0]
 
-        print("[debug] 超約天數：", df_ami_contract2["datetime"].dt.date.nunique())
         df_ami_contract3 = (
             df_ami_contract2.groupby(df_ami_contract2["datetime"].dt.date)
             .agg({"over_contract_kw": "sum"})
@@ -1365,17 +1394,13 @@ def calculator_annual_cost_ami_365(
         df_ami_contract3["over_contract_kwh"] = (
             df_ami_contract3["over_contract_kw"] / 4
         ).round()
-        print(
-            "[debug] 日超約平均電量 (kWh)：",
-            df_ami_contract3["over_contract_kwh"].mean(),
-        )
 
         annual_cost_summary["年超約天數(天)"] = df_ami_contract2[
             "datetime"
         ].dt.date.nunique()
-        annual_cost_summary["日平均超約度數(kWh)"] = df_ami_contract3[
-            "over_contract_kwh"
-        ].mean()
+        annual_cost_summary["日平均超約度數(kWh)"] = (
+            df_ami_contract3["over_contract_kwh"].mean().round()
+        )
 
     else:
         annual_cost_summary["年超約天數(天)"] = 0

@@ -1,6 +1,6 @@
 /// <reference path="./.sst/platform/config.d.ts" />
 
-import { BucketArgs } from "./.sst/platform/src/components/aws";
+import { ApiGatewayV1RouteArgs, BucketArgs } from "./.sst/platform/src/components/aws";
 
 const API_PLAN = {
   poxa: {
@@ -12,9 +12,12 @@ const API_PLAN = {
   },
 };
 
+// domian
 const PROD_DOMAIN = "api.calc.poxa.app";
 const STAGING_DOMAIN = "staging.api.calc.poxa.app";
+// bucket name
 const AWS_BUCKET_NAME = "poxa-calc";
+// bucket cors setting
 const PROD_BUCKET_CORS = [];
 const STAGING_BUCKET_CORS: BucketArgs["cors"] = {
   allowHeaders: ["*"],
@@ -23,23 +26,24 @@ const STAGING_BUCKET_CORS: BucketArgs["cors"] = {
   exposeHeaders: ["ETag"],
   maxAge: "3000 seconds",
 };
+const ESS_IRR_EVALUATION = "ess-irr-evaluation";
 
 const APIs: Record<
   string,
   Record<
     string,
     {
-      name: string;
       route: string;
-      funcArgs: sst.aws.FunctionArgs;
+      handler: sst.aws.FunctionArgs;
+      args?: ApiGatewayV1RouteArgs;
     }
   >
 > = {
   essIrrEvaluation: {
     v1: {
-      name: "EssIrrEvaluation",
       route: "POST /v1/ess-irr-evaluation",
-      funcArgs: {
+      handler: {
+        name: ESS_IRR_EVALUATION,
         python: {
           container: true,
         },
@@ -47,6 +51,9 @@ const APIs: Record<
         handler: "./v1_lambda_ess_irr_evaluation/src/v1_lambda_ess_irr_evaluation/api.handler",
         timeout: "2 minutes",
         memory: "1024 MB",
+      },
+      args: {
+        apiKey: true,
       },
     },
   },
@@ -100,10 +107,8 @@ export default $config({
     // energy storage system irr evaluation
     apiGateway.route(
       APIs.essIrrEvaluation.v1.route,
-      { ...APIs.essIrrEvaluation.v1.funcArgs, environment: { POSTGRES_URL } },
-      {
-        apiKey: true,
-      }
+      { ...APIs.essIrrEvaluation.v1.handler, environment: { POSTGRES_URL } },
+      { ...APIs.essIrrEvaluation.v1.args }
     );
 
     // must deploy before adding usage plan

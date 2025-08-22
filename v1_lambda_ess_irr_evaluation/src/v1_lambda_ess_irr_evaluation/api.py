@@ -1,41 +1,19 @@
 import asyncio
 import json
-from typing import Any, Dict
-from uuid import uuid4
 
-import pandas as pd
-from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from core.summary_generator import run_all_simulations
 
 from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import ESSEvaluationRequest
 
 from .database.connection import async_session_maker
+from .shared.core.summary_generator import run_all_simulations
 from .shared.utils.lambda_response import LambdaResponseBuilder
-
-logger = Logger(service="lambda-ess-irr-evaluation")
-
-
-async def process_request(input_params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Process the request and generate evaluation results.
-    This is where your ESS IRR evaluation logic would go.
-    """
-    # Placeholder for actual ESS IRR evaluation logic
-    # Replace this with your actual evaluation algorithm
-
-    result = {
-        "evaluation_id": str(uuid4()),
-        "input_received": input_params,
-        "evaluation_result": {
-            "irr_score": 0.15,  # Example IRR result
-            "risk_assessment": "medium",
-            "recommendation": "proceed_with_caution",
-        },
-        "timestamp": "2025-08-01T00:00:00Z",  # Would be actual timestamp
-    }
-
-    return result
+from .utils.logger import logger
+from .utils.tools import (
+    get_tou_csv,
+    parse_dataframe_to_summary_schema,
+    parse_dict_summary_to_cashflow_schema,
+)
 
 
 async def async_handler(event, context: LambdaContext):
@@ -45,56 +23,63 @@ async def async_handler(event, context: LambdaContext):
     try:
         # Parse input from the event
         req_data = ESSEvaluationRequest.model_validate_json(event.get("body", "{}"))
-        df_tou_2025 = pd.read_csv("tou_data_simple_2025.csv")
+        # Get the directory of this script to construct absolute path to CSV file
+        df_tou_2025 = get_tou_csv()
 
         # Use context manager for database session
         async with async_session_maker() as session:
             try:
-                # # Create new request record
-                # new_request = Reqs(input_params=input_data)
-                # session.add(new_request)
-                # await session.commit()
-                # await session.refresh(new_request)
-
-                # # Process the request (your evaluation logic here)
-                # evaluation_result = await process_request(input_data)
-
-                # # Store the answer/result
-                # new_answer = Ans(
-                #     req_uuid=new_request.req_uuid, output_result=evaluation_result
-                # )
-                # session.add(new_answer)
-                # await session.commit()
-                # await session.refresh(new_answer)
-
-                # Return successful response using LambdaResponseBuilder
-                # result_data = {
-                #     "request_id": str(123),
-                #     "answer_id": str(321),
-                #     "result": None,
-                # }
                 logger.info("req_data", extra=req_data.model_dump())
+                logger.info("start run_all_simulations...")
+                df_results, dict_summary, dict_annual_cost_summary = (
+                    run_all_simulations(
+                        config=req_data.config.model_dump(by_alias=True),
+                        json_ami_hourly_update=req_data.manual_curve_data,
+                        json_ami_15min=req_data.ami_uploaded_raw_data,
+                        ID=req_data.chartId,
+                        contract_capacity_old=req_data.contract_capacity_old.model_dump(
+                            by_alias=True
+                        ),
+                        contract_capacity_new=req_data.contract_capacity_new.model_dump(
+                            by_alias=True
+                        ),
+                        tou_program=req_data.priceType,
+                        industry_class=req_data.industry,
+                        tariff_adjust_factor=req_data.tariff,
+                        df_tou_2025=df_tou_2025,
+                        units=req_data.units.split(",")
+                        if req_data.units is not None
+                        else req_data.units,
+                        dr方案選項=req_data.dr方案選項,
+                        即時備轉方案選項=req_data.即時備轉方案選項,
+                        用電大戶方案=req_data.用電大戶方案,
+                        year=req_data.year,
+                    )
+                )
+                logger.info("finished run_all_simulations, start parsing...")
 
-                result = run_all_simulations(
-                    config=req_data.config,
-                    json_ami_hourly_update=req_data.manual_curve_data,
-                    json_ami_15min=req_data.ami_uploaded_raw_data,
-                    ID=req_data.chartId,
-                    contract_capacity_old=req_data.contract_capacity_old,
-                    contract_capacity_new=req_data.contract_capacity_new,
-                    tou_program=req_data.priceType,
-                    industry_class=req_data.industry,
-                    tariff_adjust_factor=req_data.tariff,
-                    df_tou_2025=df_tou_2025,
-                    units=req_data.units.split(","),
-                    dr方案選項=req_data.dr方案選項,
-                    即時備轉方案選項=req_data.即時備轉方案選項,
-                    用電大戶方案=req_data.用電大戶方案,
-                    year=req_data.year,
+                # Parse df_results to the summary schema
+                summary_output_data = parse_dataframe_to_summary_schema(df_results)
+
+                # Parse dict_summary to the cashflow schema
+                cashflow_output_data = parse_dict_summary_to_cashflow_schema(
+                    dict_summary
+                )
+
+                final_evaluation_result = {
+                    "summary": summary_output_data,
+                    "cashflow": cashflow_output_data,
+                    # "fileId": file_id,
+                    # "originalElecPrice": dict_annual_cost_summary,
+                }
+
+                logger.info(
+                    "finished parsing, ready to return",
+                    extra={"final_evaluation_result": final_evaluation_result},
                 )
 
                 response = LambdaResponseBuilder.success(
-                    data=result, message=None, status_code=200
+                    data=final_evaluation_result, message="", status_code=200
                 )
 
                 # Add CORS headers

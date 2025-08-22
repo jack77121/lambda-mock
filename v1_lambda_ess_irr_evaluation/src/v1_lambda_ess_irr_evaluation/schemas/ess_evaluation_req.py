@@ -81,8 +81,12 @@ class ContractReduction(BaseModel):
 class EnergySystem(BaseModel):
     """儲能系統設定"""
 
-    單台PCS標稱功率: float = Field(..., description="單台 PCS 標稱功率")
-    單台儲能容量: float = Field(..., description="單台 儲能容量")
+    單台_PCS_標稱功率: float = Field(
+        ..., alias="單台 PCS 標稱功率", description="單台 PCS 標稱功率"
+    )
+    單台_儲能容量: float = Field(
+        ..., alias="單台 儲能容量", description="單台 儲能容量"
+    )
     台數: Optional[int] = Field(None, description="台數")
     PCS_標稱功率: Optional[float] = Field(
         None, alias="PCS 標稱功率", description="PCS 標稱功率"
@@ -90,19 +94,19 @@ class EnergySystem(BaseModel):
     儲能容量: Optional[float] = Field(None, description="儲能容量")
     實際建置容量: Optional[float] = Field(None, description="實際建置容量")
     電能損失率RoundTrip: float = Field(
-        ..., alias="電能損失率(RoundTrip)", description="電能損失率"
+        ..., alias="電能損失率(Round Trip)", description="電能損失率"
     )
     儲能健康度年衰減率: float = Field(..., description="儲能健康度年衰減率")
     SOC上限: float = Field(..., description="SOC上限")
     SOC下限: float = Field(..., description="SOC下限")
     每日最大循環次數: int = Field(..., description="每日最大循環次數")
 
-    @field_validator("單台PCS標稱功率")
+    @field_validator("單台_PCS_標稱功率")
     @classmethod
     def validate_single_pcs_power(cls, v: float) -> float:
         return v
 
-    @field_validator("單台儲能容量")
+    @field_validator("單台_儲能容量")
     @classmethod
     def validate_single_storage_capacity(cls, v: float) -> float:
         return v
@@ -354,11 +358,11 @@ class ESSEvaluationRequest(BaseModel):
     """ESS評估請求"""
 
     config: AdvancedConfig = Field(..., description="進階配置")
-    manual_curve_data: Optional[AMICurveDataPoint] = Field([], description="手拉負載")
+    manual_curve_data: Optional[AMICurveDataPoint] = Field(None, description="手拉負載")
     ami_uploaded_raw_data: Optional[AMICurveDataPoint] = Field(
-        [], description="上傳負載"
+        None, description="上傳負載"
     )
-    units: Optional[str] = Field("", description="購買台數")
+    units: Optional[str] = Field(None, description="購買台數")
     contract_capacity_old: ContractCapacity = Field(..., description="原契約容量")
     contract_capacity_new: ContractCapacity = Field(..., description="新契約容量")
     priceType: str = Field(..., description="電價類別")
