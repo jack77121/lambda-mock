@@ -8,8 +8,8 @@ import numpy as np
 import numpy_financial as npf
 import pandas as pd
 
-from ...utils.logger import logger
-from . import calculator, config_loader
+# Use print for logging to avoid circular import issues
+from shared.core import calculator, config_loader
 
 
 def get_ami_db_path():
@@ -635,7 +635,7 @@ def run_simulation(
     year=15,
 ):
     start_time = time.time()
-    logger.info("[run_simulation]")
+    print("DEBUG: [run_simulation]")
     config["儲能系統"]["台數"] = unit
 
     if mode == "energy_dr":
@@ -712,7 +712,7 @@ def run_simulation(
 
     end_time = time.time()
     execution_time = end_time - start_time
-    logger.info("[run_simulation]", extra={"completed in": f"{execution_time:.2f} sec"})
+    print(f"DEBUG: [run_simulation] completed in {execution_time:.2f} sec")
     return result, df_summary
 
 
@@ -960,7 +960,7 @@ def run_all_simulations(
         # origin_capacity = int(df_ami_raw["value"].max().round() / 0.9)
         print("[debug] 1. 使用契約容量縮放 AMI 數據")
         start_time = time.time()
-        logger.info("start reading ami db")
+        print("DEBUG: start reading ami db")
         # 重新连接到 SQLite 数据库
         conn = sqlite3.connect(get_ami_db_path())
 
@@ -970,10 +970,7 @@ def run_all_simulations(
         # 关闭数据库连接
         conn.close()
         end_time = time.time()
-        logger.info(
-            "finished reading ami db",
-            extra={"execution_time": f"{(end_time-start_time):.2f}"},
-        )
+        print(f"DEBUG: finished reading ami db, execution_time: {(end_time-start_time):.2f}s")
         df_ami_raw["variable"] = pd.to_datetime(
             df_ami_raw["variable"], format="%H:%M:%S.%f"
         ).dt.strftime("%H:%M")

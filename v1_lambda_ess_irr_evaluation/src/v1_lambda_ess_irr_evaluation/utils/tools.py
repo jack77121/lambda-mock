@@ -1,12 +1,29 @@
+print("DEBUG: Starting imports in utils/tools.py")
+
 import os
 
 import pandas as pd
 
-from ..shared.core.calculator import (
-    calculate_max_profit_by_mode,
-    get_formula_display_data_by_mode,
-)
-from .logger import logger
+print("DEBUG: Basic imports in tools.py successful")
+
+try:
+    print("DEBUG: tools.py attempting to import from shared.core.calculator")
+    from shared.core.calculator import (
+        calculate_max_profit_by_mode,
+        get_formula_display_data_by_mode,
+    )
+    print("DEBUG: tools.py shared.core.calculator import successful")
+except Exception as e:
+    print(f"DEBUG: tools.py failed to import from shared.core.calculator: {e}")
+    raise
+
+try:
+    print("DEBUG: tools.py attempting to import from v1_lambda_ess_irr_evaluation.utils.logger")
+    from v1_lambda_ess_irr_evaluation.utils.logger import logger
+    print("DEBUG: tools.py v1_lambda_ess_irr_evaluation.utils.logger import successful")
+except Exception as e:
+    print(f"DEBUG: tools.py failed to import from v1_lambda_ess_irr_evaluation.utils.logger: {e}")
+    raise
 
 
 def parse_dataframe_to_summary_schema(df_results: pd.DataFrame) -> dict:
@@ -279,19 +296,26 @@ def parse_dict_summary_to_cashflow_schema(dict_summary: dict) -> dict:
 
 def get_tou_csv():
     try:
-        script_path = os.path.abspath(__file__)
-        script_dir = os.path.dirname(script_path)
-        csv_path = os.path.join(
-            script_dir, "..", "shared", "core", "tou_data_simple_2025.csv"
-        )
-
-        logger.info(
-            f"Attempting to read CSV from: {csv_path}",
-            extra={"script_path": script_path, "script_dir": script_dir},
-        )
-
-        return pd.read_csv(csv_path)
-    except FileNotFoundError:
-        logger.error(f"Could not find the CSV file at the expected path: {csv_path}")
-
+        # In Lambda runtime, files are copied to the root directory
+        # Try multiple possible paths in order of preference
+        possible_paths = [
+            # Direct path from Lambda root
+            "shared/core/tou_data_simple_2025.csv",
+            # Fallback to relative path from current file
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "shared", "core", "tou_data_simple_2025.csv"),
+            # Legacy path for development
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared", "core", "tou_data_simple_2025.csv")
+        ]
+        
+        for csv_path in possible_paths:
+            if os.path.exists(csv_path):
+                logger.info(f"Successfully found CSV at: {csv_path}")
+                return pd.read_csv(csv_path)
+        
+        # If none found, log all attempted paths
+        logger.error(f"Could not find CSV file at any of these paths: {possible_paths}")
+        raise FileNotFoundError(f"CSV file not found at any expected location: {possible_paths}")
+        
+    except Exception as e:
+        logger.error(f"Error reading CSV file: {str(e)}")
         raise

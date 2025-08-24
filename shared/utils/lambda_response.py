@@ -2,7 +2,7 @@ from typing import Any, Dict, TypeVar
 
 from pydantic import ValidationError
 
-from ..schemas.base_model import ApiResponseBase
+from shared.schemas.base_model import ApiResponseBase
 
 T = TypeVar("T")
 

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "poxa calc service backend shared"
 requires-python = "==3.11.9"
 dependencies = [
-    "numpy>=2.3.2",
+    "numpy==2.1.3",
     "numpy-financial>=1.0.0",
     "pandas>=2.3.1",
     "pydantic>=2.0.0",

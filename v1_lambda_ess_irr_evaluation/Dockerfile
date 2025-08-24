@@ -15,9 +15,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Install the dependencies to the lambda runtime
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
-RUN uv pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt --target ${LAMBDA_TASK_ROOT} --system --only-binary=:all:
+RUN uv pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt --target ${LAMBDA_TASK_ROOT} --system
+# RUN uv pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt --target ${LAMBDA_TASK_ROOT} --system --only-binary=:all:
 
-# Copy the source code with correct structure
+# Copy pyproject.toml first for dependency installation
+# COPY pyproject.toml ${LAMBDA_TASK_ROOT}/
+
+# Install dependencies using pyproject.toml
+# RUN cd ${LAMBDA_TASK_ROOT} && uv sync --frozen --no-dev
+
+# Copy the rest of the source code
 COPY . ${LAMBDA_TASK_ROOT}/
 # COPY ./src/v1_lambda_ess_irr_evaluation/shared/core/tou_data_simple_2025.csv ${LAMBDA_TASK_ROOT}/v1_lambda_ess_irr_evaluation/shared/core/tou_data_simple_2025.csv
 # COPY ./src/v1_lambda_ess_irr_evaluation/shared/core/ami_data.db ${LAMBDA_TASK_ROOT}/v1_lambda_ess_irr_evaluation/shared/core/ami_data.db
