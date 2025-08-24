@@ -1,29 +1,13 @@
-print("DEBUG: Starting imports in utils/tools.py")
-
 import os
 
 import pandas as pd
-
-print("DEBUG: Basic imports in tools.py successful")
-
-try:
-    print("DEBUG: tools.py attempting to import from shared.core.calculator")
-    from shared.core.calculator import (
+from shared.core.calculator import (
         calculate_max_profit_by_mode,
         get_formula_display_data_by_mode,
     )
-    print("DEBUG: tools.py shared.core.calculator import successful")
-except Exception as e:
-    print(f"DEBUG: tools.py failed to import from shared.core.calculator: {e}")
-    raise
+from v1_lambda_ess_irr_evaluation.utils.logger import logger
 
-try:
-    print("DEBUG: tools.py attempting to import from v1_lambda_ess_irr_evaluation.utils.logger")
-    from v1_lambda_ess_irr_evaluation.utils.logger import logger
-    print("DEBUG: tools.py v1_lambda_ess_irr_evaluation.utils.logger import successful")
-except Exception as e:
-    print(f"DEBUG: tools.py failed to import from v1_lambda_ess_irr_evaluation.utils.logger: {e}")
-    raise
+
 
 
 def parse_dataframe_to_summary_schema(df_results: pd.DataFrame) -> dict:

@@ -1,65 +1,16 @@
-print("DEBUG: Starting imports in api.py")
-
 import asyncio
 import json
-
-print("DEBUG: Basic imports successful")
-
 from aws_lambda_powertools.utilities.typing import LambdaContext
-
-print("DEBUG: LambdaContext import successful")
-
-try:
-    print("DEBUG: Attempting to import from shared.core.summary_generator")
-    from shared.core.summary_generator import run_all_simulations
-    print("DEBUG: shared.core.summary_generator import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from shared.core.summary_generator: {e}")
-    raise
-
-try:
-    print("DEBUG: Attempting to import from shared.utils.lambda_response")
-    from shared.utils.lambda_response import LambdaResponseBuilder
-    print("DEBUG: shared.utils.lambda_response import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from shared.utils.lambda_response: {e}")
-    raise
-
-try:
-    print("DEBUG: Attempting to import from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req")
-    from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import ESSEvaluationRequest
-    print("DEBUG: v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req: {e}")
-    raise
-
-try:
-    print("DEBUG: Attempting to import from v1_lambda_ess_irr_evaluation.database.connection")
-    from v1_lambda_ess_irr_evaluation.database.connection import async_session_maker
-    print("DEBUG: v1_lambda_ess_irr_evaluation.database.connection import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from v1_lambda_ess_irr_evaluation.database.connection: {e}")
-    raise
-
-try:
-    print("DEBUG: Attempting to import from v1_lambda_ess_irr_evaluation.utils.logger")
-    from v1_lambda_ess_irr_evaluation.utils.logger import logger
-    print("DEBUG: v1_lambda_ess_irr_evaluation.utils.logger import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from v1_lambda_ess_irr_evaluation.utils.logger: {e}")
-    raise
-
-try:
-    print("DEBUG: Attempting to import from v1_lambda_ess_irr_evaluation.utils.tools")
-    from v1_lambda_ess_irr_evaluation.utils.tools import (
+from shared.core.summary_generator import run_all_simulations
+from shared.utils.lambda_response import LambdaResponseBuilder
+from v1_lambda_ess_irr_evaluation.schemas.ess_evaluation_req import ESSEvaluationRequest
+from v1_lambda_ess_irr_evaluation.database.connection import async_session_maker
+from v1_lambda_ess_irr_evaluation.utils.logger import logger
+from v1_lambda_ess_irr_evaluation.utils.tools import (
         get_tou_csv,
         parse_dataframe_to_summary_schema,
         parse_dict_summary_to_cashflow_schema,
     )
-    print("DEBUG: v1_lambda_ess_irr_evaluation.utils.tools import successful")
-except Exception as e:
-    print(f"DEBUG: Failed to import from v1_lambda_ess_irr_evaluation.utils.tools: {e}")
-    raise
 
 
 async def async_handler(event, context: LambdaContext):
@@ -72,10 +23,10 @@ async def async_handler(event, context: LambdaContext):
 
         # Return immediate response to client
         response = LambdaResponseBuilder.success(
-            data="mock-id", message=None, status_code=200
+            data="mock-id", status_code=200
         )
         response["headers"]["Access-Control-Allow-Origin"] = "*"
-
+        logger.info("Start background processing")
         # Start background processing
         asyncio.create_task(process_in_background(req_data))
 
