@@ -1,9 +1,9 @@
-"""Schema for single simulation request"""
+"""Schema for run simulation request"""
 from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class SingleSimulationRequest(BaseModel):
+class RunSimulationRequest(BaseModel):
     """單一模擬計算請求"""
     
     # Core simulation parameters (extracted from run_simulation function)
@@ -22,9 +22,7 @@ class SingleSimulationRequest(BaseModel):
     simulation_id: str = Field(..., description="此次模擬的唯一識別碼")
 
 
-class SingleSimulationResponse(BaseModel):
-    """單一模擬計算回應"""
-    
+class RunSimulationResponse(BaseModel):
     success: bool = Field(..., description="執行是否成功")
     simulation_id: str = Field(..., description="模擬ID")
     evaluate_var_result_id: str = Field(..., description="群組ID")

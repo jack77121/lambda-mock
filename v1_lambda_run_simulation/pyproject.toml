@@ -1,8 +1,8 @@
 [project]
-name = "v1_lambda_single_simulation"
+name = "v1_lambda_run_simulation"
 version = "0.1.0"
-description = "Single simulation Lambda function for ESS IRR evaluation"
-requires-python = ">=3.11"
+description = "Run simulation Lambda function for ESS IRR evaluation"
+requires-python = "==3.11.9"
 dependencies = [
     "pydantic>=2.9.0",
     "pandas>=2.2.0",
@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "aws-lambda-powertools>=2.0.0",
+    "sst"
 ]
 
 

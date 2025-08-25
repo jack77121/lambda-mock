@@ -24,13 +24,19 @@ async def async_handler(event, context: LambdaContext):
             req_data.evaluate_var_result_id = str(uuid.uuid4())
 
         # Return immediate response to client with evaluate_var_result_id
+        # response = LambdaResponseBuilder.success(
+        #     data={"evaluate_var_result_id": req_data.evaluate_var_result_id}, status_code=200
+        # )
+        result = await process_in_background(req_data)
         response = LambdaResponseBuilder.success(
-            data={"evaluate_var_result_id": req_data.evaluate_var_result_id}, status_code=200
+            data=result, status_code=200
         )
         response["headers"]["Access-Control-Allow-Origin"] = "*"
-        logger.info("Start background processing")
+        # logger.info("Start background processing")
         # Start background processing
-        asyncio.create_task(process_in_background(req_data))
+        # asyncio.create_task(process_in_background(req_data))
+
+
 
         return response
 
@@ -244,12 +250,10 @@ async def process_in_background(req_data: ESSEvaluationRequest):
         # Convert DataFrame to dict for serialization
         df_ami_dict = df_ami.to_dict() if df_ami is not None else None
         
-        # Launch all simulations in parallel using SST Link
-        for task in simulation_tasks:
-            simulation_id = str(uuid.uuid4())
-            
-            # Prepare payload for LambdaB
-            payload = {
+
+        # just for query single task parameter testing:
+        task = simulation_tasks[0]
+        payload = {
                 "config": config,
                 "unit": task["unit"],
                 "df_ami": df_ami_dict,
@@ -260,18 +264,38 @@ async def process_in_background(req_data: ESSEvaluationRequest):
                 "year": req_data.year,
                 "evaluate_var_result_id": req_data.evaluate_var_result_id,
                 "mode_key": task["mode_key"],
-                "simulation_id": simulation_id
+                "simulation_id": str(uuid.uuid4())
             }
+        return payload
+
+        # Launch all simulations in parallel using SST Link
+        # for task in simulation_tasks:
+        #     simulation_id = str(uuid.uuid4())
             
-            # Async invoke LambdaB using SST Link
-            try:
-                Resource.SingleSimulation.invoke(
-                    InvocationType='Event',  # Async invocation
-                    Payload=json.dumps(payload)
-                )
-                logger.info(f"Launched simulation: {simulation_id} ({task['mode_key']})")
-            except Exception as e:
-                logger.error(f"Failed to launch simulation {simulation_id}: {e}")
+        #     # Prepare payload for LambdaB
+        #     payload = {
+        #         "config": config,
+        #         "unit": task["unit"],
+        #         "df_ami": df_ami_dict,
+        #         "mode": task["mode"],
+        #         "dr_program": task["dr_program"],
+        #         "sp_program": task["sp_program"],
+        #         "lc_program": task["lc_program"],
+        #         "year": req_data.year,
+        #         "evaluate_var_result_id": req_data.evaluate_var_result_id,
+        #         "mode_key": task["mode_key"],
+        #         "simulation_id": simulation_id
+        #     }
+            
+            # # Async invoke LambdaB using SST Link
+            # try:
+            #     Resource.SingleSimulation.invoke(
+            #         InvocationType='Event',  # Async invocation
+            #         Payload=json.dumps(payload)
+            #     )
+            #     logger.info(f"Launched simulation: {simulation_id} ({task['mode_key']})")
+            # except Exception as e:
+            #     logger.error(f"Failed to launch simulation {simulation_id}: {e}")
         
         logger.info(f"All {len(simulation_tasks)} simulations launched successfully. Results will be written to evaluate_var_result_id: {req_data.evaluate_var_result_id}")
         

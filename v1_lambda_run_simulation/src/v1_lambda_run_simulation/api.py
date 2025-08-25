@@ -4,17 +4,20 @@ import time
 import uuid
 from datetime import datetime
 from typing import Any, Dict
+import pandas as pd
 
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from schemas.single_simulation_req import (
-    SingleSimulationRequest,
-    SingleSimulationResponse,
+
+from shared.utils.lambda_response import LambdaResponseBuilder
+from v1_lambda_run_simulation.schemas.run_simulation_req import (
+    RunSimulationRequest,
+    RunSimulationResponse,
 )
 # from sqlalchemy import text
 # from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from shared.core.summary_generator import run_simulation
-from v1_lambda_single_simulation.utils.logger import logger
+from v1_lambda_run_simulation.utils.logger import logger
 
 # Database setup - similar to LambdaA (commented for testing)
 # async_session_maker = None
@@ -138,12 +141,11 @@ from v1_lambda_single_simulation.utils.logger import logger
 #         raise
 
 
-async def process_single_simulation(
-    request: SingleSimulationRequest,
-) -> SingleSimulationResponse:
+async def process_run_simulation(
+    request: RunSimulationRequest,
+) -> RunSimulationResponse:
     """
-    Process single simulation
-    This replaces the (run_simulation + run_and_store) logic from run_all_simulations
+    Process run simulation
     """
     start_time = time.time()
 
@@ -151,16 +153,14 @@ async def process_single_simulation(
         # init_db()  # Commented for testing
 
         # Convert serialized df_ami back to DataFrame if needed
-        import pandas as pd
-
+        
+        df_ami = None
         if request.df_ami and isinstance(request.df_ami, dict):
             df_ami = pd.DataFrame(request.df_ami)
-        else:
-            # This should not happen in normal flow, but handle gracefully
-            df_ami = None
+
 
         logger.info(
-            f"[DEBUG] Starting simulation: {request.simulation_id}, mode: {request.mode}"
+            f"[DEBUG] Starting run simulation: {request.simulation_id}, mode: {request.mode}"
         )
 
         # Execute run_simulation - this is the core logic from summary_generator.py
@@ -223,7 +223,7 @@ async def process_single_simulation(
             "result_Average_ROI": result.get('Average_ROI', 'N/A')
         })
 
-        return SingleSimulationResponse(
+        return RunSimulationResponse(
             success=True,
             simulation_id=request.simulation_id,
             evaluate_var_result_id=request.evaluate_var_result_id,
@@ -270,7 +270,7 @@ async def process_single_simulation(
             "execution_time": round(execution_time, 2)
         })
 
-        return SingleSimulationResponse(
+        return RunSimulationResponse(
             success=False,
             simulation_id=request.simulation_id,
             evaluate_var_result_id=request.evaluate_var_result_id,
@@ -283,7 +283,7 @@ async def async_handler(
     event: Dict[str, Any], context: LambdaContext
 ) -> Dict[str, Any]:
     """
-    Async Lambda handler for single simulation
+    Async Lambda handler for run simulation
     """
     try:
         # Parse input
@@ -294,35 +294,27 @@ async def async_handler(
             # Direct Lambda invocation
             body = event
 
-        request = SingleSimulationRequest.model_validate(body)
+        request = RunSimulationRequest.model_validate(body)
 
         # Process simulation
-        response = await process_single_simulation(request)
+        result = await process_run_simulation(request)
 
-        return {
-            "statusCode": 200,
-            "body": response.model_dump_json(),
-            "headers": {"Content-Type": "application/json"},
-        }
+        response = LambdaResponseBuilder.success(
+            data=result.model_dump_json(),
+            status_code=200
+        )
+
+        response["headers"]["Access-Control-Allow-Origin"] = "*"
+        return response
 
     except json.JSONDecodeError as e:
-        error_response = {"success": False, "error_message": f"Invalid JSON: {str(e)}"}
-        return {
-            "statusCode": 400,
-            "body": json.dumps(error_response),
-            "headers": {"Content-Type": "application/json"},
-        }
+        return LambdaResponseBuilder.json_decode_error()
 
     except Exception as e:
-        error_response = {
-            "success": False,
-            "error_message": f"Internal error: {str(e)}",
-        }
-        return {
-            "statusCode": 500,
-            "body": json.dumps(error_response),
-            "headers": {"Content-Type": "application/json"},
-        }
+        logger.error("處理請求失敗", extra={"error_message": str(e)})
+        return LambdaResponseBuilder.error(
+            message="伺服器內部錯誤", data={"error_message": str(e)}, status_code=500
+        )
 
 
 def handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:

@@ -14,7 +14,7 @@ include = ["backend*"]
 exclude = ["frontend*", "node_modules*"]
 
 [tool.uv.workspace]
-members = ["backend/server", "shared", "v1_lambda_ess_irr_evaluation","v1_lambda_single_simulation"]
+members = ["backend/server", "shared", "v1_lambda_ess_irr_evaluation", "v1_lambda_run_simulation"]
 exclude = ["backend/__pycache__", "backend/**/__pycache__"]
 
 

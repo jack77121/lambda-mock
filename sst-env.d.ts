@@ -13,10 +13,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "SingleSimulation": {
-      "name": string
-      "type": "sst.aws.Function"
-    }
     "poxa-calc": {
       "name": string
       "type": "sst.aws.Bucket"
