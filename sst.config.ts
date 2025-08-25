@@ -27,6 +27,7 @@ const STAGING_BUCKET_CORS: BucketArgs["cors"] = {
   maxAge: "3000 seconds",
 };
 const ESS_IRR_EVALUATION = "ess-irr-evaluation";
+const SINGLE_SIMULATION = "single-simulation";
 
 const APIs: Record<
   string,
@@ -50,7 +51,7 @@ const APIs: Record<
         runtime: "python3.11",
         handler: "./v1_lambda_ess_irr_evaluation/src/v1_lambda_ess_irr_evaluation/api.handler",
         timeout: "2 minutes",
-        memory: "1024 MB",
+        memory: "512 MB",
       },
       args: {
         apiKey: true,
@@ -87,6 +88,20 @@ export default $config({
       cors: STAGING_BUCKET_CORS,
     });
 
+    // LambdaB: Single Simulation Function
+    const singleSimulationFunction = new sst.aws.Function("SingleSimulation", {
+      handler: "./v1_lambda_single_simulation/src/v1_lambda_single_simulation/api.handler",
+      python: {
+        container: true,
+      },
+      runtime: "python3.11",
+      timeout: "2 minutes",
+      memory: "256 MB",
+      environment: {
+        POSTGRES_URL,
+      },
+    });
+
     // API Gateway
     const apiGateway = new sst.aws.ApiGatewayV1("CalcApiGateway", {
       accessLog: {
@@ -104,10 +119,14 @@ export default $config({
 
     // Add routes to the API Gateway
 
-    // energy storage system irr evaluation
+    // energy storage system irr evaluation - now with link to SingleSimulation
     apiGateway.route(
       APIs.essIrrEvaluation.v1.route,
-      { ...APIs.essIrrEvaluation.v1.handler, environment: { POSTGRES_URL } },
+      {
+        ...APIs.essIrrEvaluation.v1.handler,
+        environment: { POSTGRES_URL },
+        link: [singleSimulationFunction], // Link LambdaB to LambdaA
+      },
       { ...APIs.essIrrEvaluation.v1.args }
     );
 
@@ -124,6 +143,7 @@ export default $config({
     return {
       apiGateway: apiGateway.url,
       bucket: bucket.name,
+      singleSimulationFunction: singleSimulationFunction.name,
     };
   },
 });

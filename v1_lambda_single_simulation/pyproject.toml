@@ -1,0 +1,23 @@
+[project]
+name = "v1_lambda_single_simulation"
+version = "0.1.0"
+description = "Single simulation Lambda function for ESS IRR evaluation"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "numpy-financial>=1.0.0",
+    "psycopg[binary]>=3.2.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "aws-lambda-powertools>=2.0.0",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+shared = {workspace = true}
+sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }

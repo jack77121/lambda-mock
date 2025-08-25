@@ -381,6 +381,7 @@ class ESSEvaluationRequest(BaseModel):
     )
     year: int = Field(15, description="評估年限")
     用電大戶方案: list[str] = Field(default_factory=list, description="用電大戶方案")
+    evaluate_var_result_id: Optional[str] = Field(None, description="評估變數結果ID")
 
     @field_validator("config")
     @classmethod
@@ -475,4 +476,9 @@ class ESSEvaluationRequest(BaseModel):
     @field_validator("用電大戶方案")
     @classmethod
     def validate_large_consumer_options(cls, v: list[str]) -> list[str]:
+        return v
+
+    @field_validator("evaluate_var_result_id")
+    @classmethod
+    def validate_evaluate_var_result_id(cls, v: Optional[str]) -> Optional[str]:
         return v
