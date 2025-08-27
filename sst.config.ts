@@ -69,7 +69,7 @@ const APIs: Record<
         runtime: "python3.11",
         handler: "./v1_lambda_run_simulation/src/v1_lambda_run_simulation/api.handler",
         timeout: "2 minutes",
-        memory: "512 MB",
+        memory: "256 MB",
       },
       args: {
         apiKey: true,

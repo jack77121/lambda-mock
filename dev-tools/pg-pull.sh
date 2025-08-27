@@ -7,8 +7,8 @@
 set -e
 
 # Configuration
-MODELS_DIR="backend/shared/models"
-BACKUP_DIR="backend/shared/models_backup_$(date +%Y%m%d_%H%M%S)"
+MODELS_DIR="shared/models"
+BACKUP_DIR="shared/models_backup_$(date +%Y%m%d_%H%M%S)"
 POSTGRES_URL_FILE="backend/server/.env"
 
 # Colors for output

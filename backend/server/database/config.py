@@ -1,13 +1,11 @@
 import os
-from typing import Optional
 
 from pydantic_settings import BaseSettings
 
 
 class DatabaseSettings(BaseSettings):
     database_url: str = os.getenv(
-        "DATABASE_URL", 
-        "postgresql+asyncpg://user:password@localhost:5432/dbname"
+        "DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5432/dbname"
     )
     echo_sql: bool = os.getenv("DATABASE_ECHO", "false").lower() == "true"
     pool_size: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))

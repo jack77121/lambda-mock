@@ -1045,6 +1045,7 @@ name = "v1-lambda-run-simulation"
 version = "0.1.0"
 source = { editable = "v1_lambda_run_simulation" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "aws-lambda-powertools" },
     { name = "numpy" },
     { name = "numpy-financial" },
@@ -1057,6 +1058,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "aws-lambda-powertools", specifier = ">=2.0.0" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "numpy-financial", specifier = ">=1.0.0" },
