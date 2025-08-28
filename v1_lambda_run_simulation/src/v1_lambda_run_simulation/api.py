@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import time
 import uuid
 from typing import Any, Dict
@@ -18,8 +19,25 @@ from v1_lambda_run_simulation.schemas.run_simulation_req import (
 )
 from v1_lambda_run_simulation.utils.logger import logger
 
-# Database setup - similar to LambdaA (commented for testing)
+# Database setup
 async_session_maker = None
+
+
+def sanitize_for_json(obj):
+    """
+    Recursively sanitize data for JSON serialization
+    Converts NaN and Infinity to None to avoid PostgreSQL JSONB errors
+    """
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    else:
+        return obj
 
 
 #
@@ -54,11 +72,14 @@ async def write_result_back(
         # Convert simulation_id to UUID if it's a string
         task_uuid = uuid.UUID(simulation_id)
 
+        # Sanitize result to handle NaN values before JSON serialization
+        sanitized_result = sanitize_for_json(result)
+
         # Query and update the evaluate task
         stmt = (
             update(EvaluateTasks)
             .where(EvaluateTasks.task_id == task_uuid)
-            .values(result=result, status="SUCCESS")
+            .values(result=sanitized_result, status="SUCCESS")
         )
 
         await session.execute(stmt)
