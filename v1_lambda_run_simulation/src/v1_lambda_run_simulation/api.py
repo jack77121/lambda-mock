@@ -139,18 +139,31 @@ async def process_run_simulation(
     start_time = time.time()
 
     try:
+        db_init_start_time = time.time()
+        logger.info("[DEBUG] Start db init")
         init_db()  # Commented for testing
+        db_init_execution_time = time.time() - db_init_start_time
+        logger.info(
+            f"[DEBUG] db init completed in {db_init_execution_time:.2f}s"
+        )
 
         # Convert serialized df_ami back to DataFrame if needed
-
+        df_ami_recover_start_time = time.time()
         df_ami = None
+        logger.info("[DEBUG] Start df_ami recover")
         if request.df_ami and isinstance(request.df_ami, dict):
             df_ami = pd.DataFrame(request.df_ami)
+        df_ami_recover_execution_time = time.time() - df_ami_recover_start_time
+        logger.info(
+            f"[DEBUG] df_ami recover completed in {df_ami_recover_execution_time:.2f}s"
+        )
 
         logger.info(
             f"[DEBUG] Starting run simulation: {request.simulation_id}, mode: {request.mode}"
         )
 
+        run_simulation_start_time = time.time()
+        logger.info("[DEBUG] Start run_simulation")
         # Execute run_simulation - this is the core logic from summary_generator.py
         gain, df_summary = run_simulation(
             config=request.config,
@@ -162,11 +175,13 @@ async def process_run_simulation(
             lc_program=request.lc_program,
             year=request.year,
         )
-
-        execution_time = time.time() - start_time
+        run_simulation_execution_time = time.time() - run_simulation_start_time
         logger.info(
-            f"[DEBUG] Simulation completed in {execution_time:.2f}s: {request.simulation_id}"
+            f"[DEBUG] run_simulation completed in  {run_simulation_execution_time}"
         )
+
+        
+
 
         # Prepare result data (similar to what run_and_store did)
         result = {
@@ -174,6 +189,7 @@ async def process_run_simulation(
             "df_summary": df_summary.to_dict() if df_summary is not None else None,
         }
 
+        write_result_back_start_time = time.time()
         # Write result back to database (commented for testing - using logger instead)
         async with async_session_maker() as session:
             await write_result_back(
@@ -182,6 +198,14 @@ async def process_run_simulation(
                 result=result,
             )
 
+        write_result_back_execution_time = time.time() - write_result_back_start_time
+
+        logger.info(
+            f"[DEBUG] write_result_back completed in  {write_result_back_execution_time}"
+        )
+
+        
+        total_execution_time = time.time() - start_time
         logger.info(
             "Simulation completed successfully",
             extra={
@@ -189,7 +213,7 @@ async def process_run_simulation(
                 "evaluate_var_result_id": request.evaluate_var_result_id,
                 "mode_key": request.mode_key,
                 "unit": request.unit,
-                "execution_time": round(execution_time, 2),
+                "execution_time": round(total_execution_time, 2),
                 "result_ROI": gain.get("ROI", "N/A"),
                 "result_IRR": gain.get("IRR", "N/A"),
                 "result_Annual_ROI": gain.get("Annual_ROI", "N/A"),
@@ -201,7 +225,7 @@ async def process_run_simulation(
             success=True,
             simulation_id=request.simulation_id,
             evaluate_var_result_id=request.evaluate_var_result_id,
-            execution_time=execution_time,
+            execution_time=total_execution_time,
         )
 
     except Exception as e:
