@@ -281,11 +281,12 @@ async def async_handler(
         request = RunSimulationRequest.model_validate(body)
 
         # Process simulation
-        result = await process_run_simulation(request)
-
-        response = LambdaResponseBuilder.success(
-            data=result.model_dump(), status_code=200
-        )
+        simulationRsps = await process_run_simulation(request)
+        if simulationRsps.success:
+            response = LambdaResponseBuilder.success(data=simulationRsps.result.model_dump(), status_code=200)
+        else:
+            response = LambdaResponseBuilder.error(message=simulationRsps.result.error_message, status_code=500)
+        
 
         response["headers"]["Access-Control-Allow-Origin"] = "*"
         return response
