@@ -7,7 +7,7 @@ const API_PLAN = {
     name: "poxa-plan",
     throttle: {
       rate: 100,
-      burst: 100,
+      burst: 250,
     },
   },
 };
@@ -40,24 +40,6 @@ const APIs: Record<
     }
   >
 > = {
-  essIrrEvaluation: {
-    v1: {
-      route: "POST /v1/ess-irr-evaluation",
-      handler: {
-        name: ESS_IRR_EVALUATION,
-        python: {
-          container: true,
-        },
-        runtime: "python3.11",
-        handler: "./v1_lambda_ess_irr_evaluation/src/v1_lambda_ess_irr_evaluation/api.handler",
-        timeout: "2 minutes",
-        memory: "512 MB",
-      },
-      args: {
-        apiKey: true,
-      },
-    },
-  },
   runSimulation: {
     v1: {
       route: "POST /v1/run-simulation",
@@ -123,15 +105,6 @@ export default $config({
 
     // Add routes to the API Gateway
 
-    // energy storage system irr evaluation (run_all_simulations)
-    apiGateway.route(
-      APIs.essIrrEvaluation.v1.route,
-      {
-        ...APIs.essIrrEvaluation.v1.handler,
-        environment: { POSTGRES_URL },
-      },
-      { ...APIs.essIrrEvaluation.v1.args }
-    );
     // energy storage system run_simulation
     apiGateway.route(
       APIs.runSimulation.v1.route,

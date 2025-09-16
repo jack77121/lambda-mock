@@ -303,12 +303,12 @@ dr_program_dict = {
 }
 
 
-# TODO: 補上其他，並且問Jack
+# TODO: 補上其他
 config_desc = {
     "電價方案": {
         "契約容量": {
-            "unit": "kW",
-            "description": "用戶與台電約定的最大需量容量，5000kW以上才是用電大戶，才能參加用電大戶義務儲能配合調整用電措施",
+            "unit": "字典",
+            "description": "包含old和new兩個字典，分別代表原始契約容量和調整後契約容量。每個字典包含經常契約、半尖峰契約/非夏月契約、週六半尖峰契約、離峰契約等四種容量設定",
         },
         "計費類別": {
             "unit": "字串",
@@ -337,8 +337,62 @@ config_desc = {
             "unit": "浮點數",
             "description": "針對整體基本電價做的調整倍數，用反應未來電價變動，例如：1.017表示電價上漲1.7%",
         },
+        "調整後夏月最高電價": {
+            "unit": "元/kWh",
+            "description": "經電費調整係數調整後的夏月期間尖峰時段最高電價",
+        },
+        "調整後夏月最低電價": {
+            "unit": "元/kWh",
+            "description": "經電費調整係數調整後的夏月期間離峰時段最低電價",
+        },
+        "調整後非夏月最高電價": {
+            "unit": "元/kWh",
+            "description": "經電費調整係數調整後的非夏月期間尖峰時段最高電價",
+        },
+        "調整後非夏月最低電價": {
+            "unit": "元/kWh",
+            "description": "經電費調整係數調整後的非夏月期間離峰時段最低電價",
+        },
+    },
+    "電價試算": {
+        "原始": {
+            "年用電度數": {
+                "unit": "度",
+                "description": "原始負載未使用儲能系統時的年度用電量",
+            },
+            "年基本電費": {"unit": "元", "description": "原始契約容量下的年度基本電費"},
+            "年流動電費": {"unit": "元", "description": "原始負載的年度流動電費"},
+            "年總電費": {
+                "unit": "元",
+                "description": "原始情況下的年度總電費（基本電費+流動電費）",
+            },
+            "年平均電費": {
+                "unit": "元/度",
+                "description": "原始情況下的年度平均電費單價",
+            },
+        },
+        "應用儲能": {
+            "年用電度數": {"unit": "度", "description": "應用儲能系統後的年度用電量"},
+            "年基本電費": {"unit": "元", "description": "調整契約容量後的年度基本電費"},
+            "年流動電費": {
+                "unit": "元",
+                "description": "儲能充放電調度後的年度流動電費",
+            },
+            "年總電費": {
+                "unit": "元",
+                "description": "應用儲能後的年度總電費（基本電費+流動電費）",
+            },
+            "年平均電費": {
+                "unit": "元/度",
+                "description": "應用儲能後的年度平均電費單價",
+            },
+        },
     },
     "降低契約容量": {
+        "年節省基本電費": {
+            "unit": "元",
+            "description": "透過降低契約容量所節省的年度基本電費",
+        },
         "每kW契約容量費用": {
             "unit": "元/kW",
             "description": "每年每 kW 契約容量需支付的容量費",
@@ -571,7 +625,20 @@ def load_config():
     """
     return {
         "電價方案": {
-            "契約容量": None,
+            "契約容量": {
+                "old": {
+                    "經常契約": None,
+                    "半尖峰契約/非夏月契約": None,
+                    "週六半尖峰契約": None,
+                    "離峰契約": None,
+                },
+                "new": {
+                    "經常契約": None,
+                    "半尖峰契約/非夏月契約": None,
+                    "週六半尖峰契約": None,
+                    "離峰契約": None,
+                },
+            },
             "計費類別": None,
             "行業別": None,
             # "加權平均尖峰電價": 7.14,
@@ -585,7 +652,24 @@ def load_config():
             "非夏月最低電價": None,
             "電費調整係數": None,
         },
+        "電價試算": {
+            "原始": {  # baseline（未用儲能）
+                "年用電度數": None,
+                "年基本電費": None,
+                "年流動電費": None,
+                "年總電費": None,
+                "年平均電費": None,
+            },
+            "應用儲能": {  # with storage（契約調整/充放電調度後）
+                "年用電度數": None,
+                "年基本電費": None,
+                "年流動電費": None,
+                "年總電費": None,
+                "年平均電費": None,
+            },
+        },
         "降低契約容量": {
+            "年節省基本電費": None,
             "每kW契約容量費用": None,
             "年契約容量費用": None,
             "降契約容量比例": None,
@@ -653,7 +737,7 @@ def load_config():
             "得標容量比例": 100,
             "折扣比例": 100,  # 這是為了負載波動所設計的參數 或是 針對成功率
             "每月觸發次數": 1,
-            "日前電能邊際價格": 3000,
+            "日前電能邊際價格": 6000,
             "保留比例": None,  # 保留比例跟保留容量的機制跟單位要在考慮
             "保留容量": None,
         },
@@ -873,7 +957,11 @@ def get_contract_capacity_parameter(
 
     # 欄位對應表：使用者輸入名稱 → 依電價型態映射的實際欄位
     field_alias_mapping = {
-        "半尖峰契約/非夏月契約": {"二段式": "非夏月契約", "三段式": "半尖峰契約"},
+        "半尖峰契約/非夏月契約": {
+            "二段式": "非夏月契約",
+            "批次": "非夏月契約",
+            "三段式": "半尖峰契約",
+        },
     }
 
     def resolve_contract_key(input_key, tou_program):
@@ -883,6 +971,8 @@ def get_contract_capacity_parameter(
             return field_alias_mapping[input_key]["二段式"]
         elif "三段式" in tou_program:
             return field_alias_mapping[input_key]["三段式"]
+        elif "批次" in tou_program:
+            return field_alias_mapping[input_key]["批次"]
         else:
             return input_key
 
@@ -896,8 +986,6 @@ def get_contract_capacity_parameter(
     for k, v in contract_capacities.items():
         resolved_key = resolve_contract_key(k, tou_program)
         contracts[resolved_key] = contracts.get(resolved_key, 0) + v
-
-    print(f"[debug] 契約容量參數：{contracts}")
 
     # 主要契約容量
     ec = contracts.get("經常契約", 0)
@@ -913,17 +1001,45 @@ def get_contract_capacity_parameter(
     p_sat = unit_prices.get("週六半尖峰契約", 0)
     p_off = unit_prices.get("離峰契約", 0)
 
-    contract_data = {
-        "is_summer": [1 if season == "summer" else 0] * 4,
-        "tou_tag": ["尖峰", "半尖峰", "週六半尖峰", "離峰"],
-        "capacity_kw": [
-            ec,
-            ec + sec_cap,
-            ec + sec_cap + wk_sat,
-            ec + sec_cap + wk_sat + offp,
-        ],
-        "unit_price": [p_ec, p_sec, p_sat, p_off],
-    }
+    if any(keyword in tou_program for keyword in ["二段式", "批次"]):
+        # 非夏月尖峰，是經常性 + 非夏月契約
+        if season == "summer":
+            contract_data = {
+                "is_summer": [1] * 4,
+                "tou_tag": ["尖峰", "半尖峰", "週六半尖峰", "離峰"],
+                "capacity_kw": [
+                    ec,
+                    ec + sec_cap,
+                    ec + sec_cap + wk_sat,
+                    ec + sec_cap + wk_sat + offp,
+                ],
+                "unit_price": [p_ec, p_sec, p_sat, p_off],
+            }
+        else:
+            contract_data = {
+                "is_summer": [0] * 4,
+                "tou_tag": ["尖峰", "半尖峰", "週六半尖峰", "離峰"],
+                "capacity_kw": [
+                    ec + sec_cap,
+                    ec + sec_cap,
+                    ec + sec_cap + wk_sat,
+                    ec + sec_cap + wk_sat + offp,
+                ],
+                "unit_price": [p_ec, p_sec, p_sat, p_off],
+            }
+
+    else:
+        contract_data = {
+            "is_summer": [1 if season == "summer" else 0] * 4,
+            "tou_tag": ["尖峰", "半尖峰", "週六半尖峰", "離峰"],
+            "capacity_kw": [
+                ec,
+                ec + sec_cap,
+                ec + sec_cap + wk_sat,
+                ec + sec_cap + wk_sat + offp,
+            ],
+            "unit_price": [p_ec, p_sec, p_sat, p_off],
+        }
 
     return pd.DataFrame(contract_data)
 
@@ -966,7 +1082,11 @@ def calculate_annual_basic_fee(
 
     # 欄位對應表：使用者輸入名稱 → 依電價型態映射的實際欄位
     field_alias_mapping = {
-        "半尖峰契約/非夏月契約": {"二段式": "非夏月契約", "三段式": "半尖峰契約"},
+        "半尖峰契約/非夏月契約": {
+            "二段式": "非夏月契約",
+            "三段式": "半尖峰契約",
+            "批次": "非夏月契約",
+        },
     }
 
     def resolve_contract_key(input_key, tou_program):
@@ -976,6 +1096,8 @@ def calculate_annual_basic_fee(
             return field_alias_mapping[input_key]["二段式"]
         elif "三段式" in tou_program:
             return field_alias_mapping[input_key]["三段式"]
+        elif "批次" in tou_program:
+            return field_alias_mapping[input_key]["批次"]
         else:
             return input_key
 
@@ -1027,6 +1149,186 @@ def calculate_annual_basic_fee(
         # "非夏月基本電費（月計)": round(not_summer_fee, 2),
         "年總基本電費": round(total_fee, 2)
     }
+
+
+def calculate_over_capacity_penalties(
+    df_segment, tou_program, price_dict, contract_capacity
+):
+    """
+    計算超約費用的整合函數
+
+    參數:
+    df_segment: DataFrame - 包含 is_summer, tou_tag, over_capacity_kw 欄位
+    tou_program: str - 電價方案名稱 (如 '高壓三段式電價')
+    price_dict: dict - 電價資料字典
+    contract_capacity: dict - 契約容量設定
+
+    回傳:
+    dict - 包含夏月和非夏月的超約費用
+    """
+
+    # 步驟1: 按夏月/非夏月和時段分組，取各組最大超約量
+    df_segment2 = (
+        df_segment.groupby(["is_summer", "tou_tag"])
+        .agg({"over_capacity_kw": "max"})
+        .reset_index()
+    )
+
+    # 步驟2: 獲取契約容量參數並合併
+    df_contract_summer = get_contract_capacity_parameter(
+        tou_program, price_dict, contract_capacity, "summer"
+    )
+    df_contract_not_summer = get_contract_capacity_parameter(
+        tou_program, price_dict, contract_capacity, "not_summer"
+    )
+    df_contract2 = pd.concat([df_contract_summer, df_contract_not_summer]).reset_index(
+        drop=True
+    )
+
+    # 步驟3: 合併契約容量資料
+    df_segment3 = df_segment2.merge(
+        df_contract2, on=["is_summer", "tou_tag"], how="left"
+    )
+
+    # 步驟4: 調整超約容量 - 按優先順序分配
+    df = df_segment3.copy()
+
+    # 定義優先順序
+    priority = {"尖峰": 1, "半尖峰": 2, "週六半尖峰": 3, "離峰": 4}
+    df["priority"] = df["tou_tag"].map(priority)
+
+    # 處理每個季節分開計算
+    def adjust_over_capacity(group):
+        used_capacity = 0
+        adjusted = []
+
+        # 按照優先順序排序
+        group = group.sort_values("priority")
+
+        for _, row in group.iterrows():
+            oc = max(row["over_capacity_kw"] - used_capacity, 0)
+            adjusted.append(oc)
+            # 更新已佔用的超約容量
+            used_capacity += oc
+
+        group["adj_over_capacity_kw"] = adjusted
+        return group
+
+    df = (
+        df.groupby(["is_summer"], group_keys=True)
+        .apply(adjust_over_capacity, include_groups=False)
+        .reset_index(level=["is_summer"])
+    )
+
+    # 步驟5: 計算超約費用
+    over_col = "adj_over_capacity_kw"
+
+    # 10% 門檻 (每列以該列的契約容量為準)
+    threshold = 0.10 * df["capacity_kw"]
+
+    # 分攤超約量：10% 以內與超過 10% 的兩段
+    df["over_within_10pct_kw"] = np.minimum(df[over_col], threshold).clip(lower=0)
+    df["over_above_10pct_kw"] = (df[over_col] - threshold).clip(lower=0)
+
+    # 計算每列的超約費用
+    # 10%以內 → 2倍單價；超過10% → 3倍單價
+    df["overage_fee"] = (
+        2.0 * df["unit_price"] * df["over_within_10pct_kw"]
+        + 3.0 * df["unit_price"] * df["over_above_10pct_kw"]
+    )
+
+    # 步驟6: 按季節匯總超約費用
+    monthly_fee = df.groupby(["is_summer"], as_index=False).agg(
+        total_overage_fee=("overage_fee", "sum")
+    )
+
+    # print(monthly_fee)
+
+    # 步驟7: 計算年度超約費用
+    # 確定夏月和非夏月的月數
+    number_of_summer_months = (
+        5 if "高壓" in tou_program or "特高壓" in tou_program else 4
+    )
+    number_of_not_summer_months = 12 - number_of_summer_months
+
+    # 轉換為字典格式回傳
+    result = {}
+    for _, row in monthly_fee.iterrows():
+        if row["is_summer"] == 1:
+            result["summer_monthly_fee"] = row["total_overage_fee"]
+            result["summer_annual_capacity_penalty"] = (
+                row["total_overage_fee"] * number_of_summer_months
+            )
+        else:
+            result["not_summer_monthly_fee"] = row["total_overage_fee"]
+            result["not_summer_annual_capacity_penalty"] = (
+                row["total_overage_fee"] * number_of_not_summer_months
+            )
+
+    # 計算總年度費用
+    # result['total_annual_fee'] = result.get('summer_annual_fee', 0) + result.get('not_summer_annual_fee', 0)
+
+    # # 也回傳詳細的計算過程供參考
+    # result['detail_df'] = df
+    # result['monthly_summary'] = monthly_fee
+
+    return result
+
+
+# 計算15年的年度罰金
+def calculate_annual_capacity_penalties(
+    usable_kWh_list, max_summer_over, max_not_summer_over, result, rtt_loss_rate
+):
+    """
+    計算15年的年度罰金
+
+    參數:
+    usable_kWh_list: 15年儲能可用電量列表
+    max_summer_over: 夏月最大超約量
+    max_not_summer_over: 非夏月最大超約量
+    result: 包含罰金資訊的字典
+
+    回傳:
+    list: 15年的年度罰金列表
+    """
+    annual_penalties = []
+
+    # 從result取得年度罰金
+    summer_annual_penalty = result["summer_annual_capacity_penalty"]
+    not_summer_annual_penalty = result["not_summer_annual_capacity_penalty"]
+
+    for i, available_kWh in enumerate(usable_kWh_list):
+        year = i + 1
+        annual_penalty = 0
+
+        available_kWh = available_kWh * np.sqrt(1 - rtt_loss_rate)
+        # 判斷是否能處理夏月超約
+        can_handle_summer = available_kWh >= max_summer_over
+        # 判斷是否能處理非夏月超約
+        can_handle_not_summer = available_kWh >= max_not_summer_over
+
+        # 如果不能處理，就要付罰金
+        if not can_handle_summer:
+            annual_penalty += summer_annual_penalty
+        if not can_handle_not_summer:
+            annual_penalty += not_summer_annual_penalty
+
+        annual_penalties.append(float(annual_penalty))
+
+        # 列印詳細資訊
+        status = []
+        if can_handle_summer and can_handle_not_summer:
+            status.append("夏月、非夏月都可處理")
+        elif can_handle_summer and not can_handle_not_summer:
+            status.append("只能處理夏月")
+        elif not can_handle_summer and can_handle_not_summer:
+            status.append("只能處理非夏月")
+        else:
+            status.append("夏月、非夏月都無法處理")
+
+        # print(f"第 {year:2d} 年: 可用電量 {available_kWh:6.0f} kWh, {status[0]}, 年度罰金: {annual_penalty:,.0f} 元")
+
+    return annual_penalties
 
 
 # 計算年度電費
@@ -1698,7 +2000,6 @@ def update_config(config):
     b["實際建置容量"] = b["儲能容量"]
 
     # t["契約容量"] = df_capacity[df_capacity['ID'] == ID]['經常性契容'].values[0]
-    t["年用度數"] = t["契約容量"] * 24 * 365
     # t["調整後加權平均尖峰電價"] = round(t["加權平均尖峰電價"] * t["電費調整係數"], 5)
     # t["調整後加權平均離峰電價"] = round(t["加權平均離峰電價"] * t["電費調整係數"], 5)
     # t["調整後加權平均電價"] = round(t["加權平均電價"] * t["電費調整係數"], 5)

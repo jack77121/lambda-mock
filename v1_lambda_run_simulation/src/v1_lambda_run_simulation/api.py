@@ -159,7 +159,7 @@ async def process_run_simulation(
         run_simulation_start_time = time.time()
 
         # Execute run_simulation - this is the core logic from summary_generator.py
-        gain, df_summary = run_simulation(
+        gain, df_summary, config = run_simulation(
             config=request.config,
             unit=request.unit,
             df_ami=df_ami,
@@ -175,6 +175,7 @@ async def process_run_simulation(
         result = {
             "gain": gain,  # The gain dict from run_simulation
             "df_summary": df_summary.to_dict() if df_summary is not None else None,
+            "config": config,
         }
 
         # write_result_back_start_time = time.time()
@@ -283,10 +284,13 @@ async def async_handler(
         # Process simulation
         simulationRsps = await process_run_simulation(request)
         if simulationRsps.success:
-            response = LambdaResponseBuilder.success(data=simulationRsps.result.model_dump(), status_code=200)
+            response = LambdaResponseBuilder.success(
+                data=simulationRsps.result.model_dump(), status_code=200
+            )
         else:
-            response = LambdaResponseBuilder.error(message=simulationRsps.result.error_message, status_code=500)
-        
+            response = LambdaResponseBuilder.error(
+                message=simulationRsps.result.error_message, status_code=500
+            )
 
         response["headers"]["Access-Control-Allow-Origin"] = "*"
         return response

@@ -8,7 +8,6 @@ import numpy as np
 import numpy_financial as npf
 import pandas as pd
 
-# Use print for logging to avoid circular import issues
 from shared.core import calculator, config_loader
 
 
@@ -26,7 +25,7 @@ ALL_ROW_LABELS = [
     "實際可用容量(kWh)",
     "投標容量",
     "保留容量",
-    "降契約容量",
+    "降契約容量收益",
     "電價差收益",
     "日選時段型",
     "輔助服務價金",
@@ -49,10 +48,11 @@ SCENARIO_ROWS = {
         "建置容量(kWh)",
         "實際可用容量(kWh)",
         "保留容量",
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "自定義收益",
         "總收入",
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -65,11 +65,12 @@ SCENARIO_ROWS = {
         "建置容量(kWh)",
         "實際可用容量(kWh)",
         "保留容量",
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "用電大戶收益",
         "自定義收益",
         "總收入",
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -82,11 +83,12 @@ SCENARIO_ROWS = {
         "建置容量(kWh)",
         "實際可用容量(kWh)",
         "保留容量",
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "日選時段型",
         "自定義收益",
         "總收入",
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -100,12 +102,13 @@ SCENARIO_ROWS = {
         "實際可用容量(kWh)",
         "投標容量",
         "保留容量",
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "日選時段型",
         "輔助服務價金",
         "自定義收益",
         "總收入",
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -120,11 +123,12 @@ SCENARIO_ROWS = {
         "實際可用容量(kWh)",
         "投標容量",
         "保留容量",
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "輔助服務價金",
         "自定義收益",
         "總收入",
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -166,6 +170,9 @@ def generate_summary(
     SOC下限 = cfg["SOC下限"]
     年衰減率 = cfg["儲能健康度年衰減率"] / 100
     cycles = config["儲能系統"]["每日最大循環次數"]
+    tou_program = config["電價方案"]["計費類別"]
+
+    df_ami_0 = df_ami.copy()
 
     # 是否是用電大戶
     if lc_mode in ["義務時數型", "累進回饋型"]:
@@ -195,13 +202,10 @@ def generate_summary(
     if "保留容量" in row_labels:
         df_summary.loc["保留容量"] = [0] * years
 
-    if "降契約容量" in row_labels:
-        if include_contract_saving:
-            df_summary.loc["降契約容量"] = [
-                config["降低契約容量"]["降低契約容量收益"]
-            ] * years
-        else:
-            df_summary.loc["降契約容量"] = [0] * years
+    if "降契約容量收益" in row_labels:
+        df_summary.loc["降契約容量收益"] = [
+            config["降低契約容量"]["年節省基本電費"]
+        ] * years
 
     if "電價差收益" in row_labels:
         # 尖峰價 = config['電價方案']['調整後加權平均尖峰電價']
@@ -213,26 +217,41 @@ def generate_summary(
         夏月天數 = config["電價方案"]["夏月天數"]
         非夏月天數 = config["電價方案"]["非夏月天數"]
 
-        # 套利天數 = config['可套利天數']['可套利天數']
-
-        # 補上可充放電量，夏月跟非夏月都更新
-        df_ami, df_ami2 = calculator.calculate_transferable_energy(
-            df_ami,
-            config["電價方案"]["契約容量"],
-            config["儲能系統"]["PCS 標稱功率"],
-            [("00:00", "23:45")],
-            consider_large_consumer,
-        )
-        # print('config pcs', config['儲能系統']['PCS 標稱功率'])
-        # print(df_ami2)
-
         損失率 = cfg["電能損失率(Round Trip)"] / 100
 
         delta_kWh = df_summary.loc["實際可用容量(kWh)"] - df_summary.loc["保留容量"]
         # #print('delta_kWh',type(delta_kWh), delta_kWh)
 
         # 計算每年的每日平均可轉移電量
+        df_ami, df_ami2 = calculator.calculate_transferable_energy(
+            df_ami_0,
+            tou_program,
+            config["電價方案"]["契約容量"]["new"],
+            config["儲能系統"]["PCS 標稱功率"],
+            [("00:00", "23:45")],
+            consider_large_consumer,
+        )
 
+        # 判斷是否超約，超約的話，計算超約費用
+        # 後面可能會因為電池退化而導致可用容量降低，進而超約
+        # 超約的話：用電大戶跟DR都要扣除額外超越的電量
+
+        # 取出夏月跟非夏月1循環的超約電量統計
+        max_summer_over_1 = df_ami2[(df_ami2["season"] == "summer")]["超約電量"].max()
+        max_not_summer_over_1 = df_ami2[(df_ami2["season"] == "not_summer")][
+            "超約電量"
+        ].max()
+        # print(f"[debug] 夏月超約: {max_summer_over_1} kWh, 非夏月超約: {max_not_summer_over_1} kWh")
+
+        # 最大的超約費可以先算，不管1循環或2循環
+        penality_result = config_loader.calculate_over_capacity_penalties(
+            df_ami,
+            config["電價方案"]["計費類別"],
+            config_loader.price_dict,
+            config["電價方案"]["契約容量"]["new"],
+        )
+
+        # 1. 夏月先算，夏月都只有1循環，所以共用，不用區分
         result_te_summer = calculator.batch_calculate_transfered_energy(
             df_ami2, delta_kWh, "summer", 損失率, consider_large_consumer
         )
@@ -240,6 +259,7 @@ def generate_summary(
         夏月每日可以轉移度數 = result_te_summer["可轉移電量"]
         夏月每日用電大戶放電度數 = result_te_summer["用電大戶義務可轉移電量"]
 
+        # 2. 非夏月再算，考慮兩循環
         if config["儲能系統"]["每日最大循環次數"] == 1:
             result_te_not_summer = calculator.batch_calculate_transfered_energy(
                 df_ami2, delta_kWh, "not_summer", 損失率, consider_large_consumer
@@ -247,7 +267,7 @@ def generate_summary(
             非夏月可以轉移度數 = result_te_not_summer["可轉移電量"]
             非夏月每日用電大戶放電度數 = result_te_not_summer["用電大戶義務可轉移電量"]
 
-        elif config["儲能系統"]["每日最大循環次數"] == 2:
+        elif config["儲能系統"]["每日最大循環次數"] >= 2:
             # 確認有兩個高峰
             if (
                 calculator.count_high_peaks(
@@ -260,8 +280,9 @@ def generate_summary(
                 # time_periods = [('00:00', '10:45'), ('11:00', '23:45')]
                 # 第一循環
                 _, df_ami2_2 = calculator.calculate_transferable_energy(
-                    df_ami,
-                    config["電價方案"]["契約容量"],
+                    df_ami_0,
+                    tou_program,
+                    config["電價方案"]["契約容量"]["new"],
                     config["儲能系統"]["PCS 標稱功率"],
                     time_periods=[("00:00", "10:45")],
                 )
@@ -269,10 +290,16 @@ def generate_summary(
                     df_ami2_2, delta_kWh, "not_summer", 損失率
                 )["可轉移電量"]
 
+                max_not_summer_over_2_1 = df_ami2_2[
+                    (df_ami2_2["season"] == "not_summer")
+                ]["超約電量"].max()
+                # print(f"[debug] 非夏月第一時段超約: {max_not_summer_over_2_1} kWh")
+
                 # 第二循環，只有第二循環才會有用電大戶
                 _, df_ami2_2 = calculator.calculate_transferable_energy(
-                    df_ami,
-                    config["電價方案"]["契約容量"],
+                    df_ami_0,
+                    tou_program,
+                    config["電價方案"]["契約容量"]["new"],
                     config["儲能系統"]["PCS 標稱功率"],
                     time_periods=[("11:00", "23:45")],
                     consider_large_consumer=consider_large_consumer,
@@ -284,6 +311,12 @@ def generate_summary(
                 非夏月每日用電大戶放電度數 = result_te_not_summer_2[
                     "用電大戶義務可轉移電量"
                 ]
+
+                max_not_summer_over_2_2 = df_ami2_2[
+                    (df_ami2_2["season"] == "not_summer")
+                ]["超約電量"].max()
+                # print(f"[debug] 非夏月第二時段超約: {max_not_summer_over_2_2} kWh")
+
                 # print('非夏月可以轉移度數_1', 非夏月可以轉移度數_1 , '非夏月可以轉移度數_2', 非夏月可以轉移度數_2)
                 非夏月可以轉移度數 = 非夏月可以轉移度數_1 + 非夏月可以轉移度數_2
 
@@ -298,13 +331,26 @@ def generate_summary(
                 ]
                 config["儲能系統"]["每日最大循環次數"] = 1
 
-        # 只有一個高峰
-        else:
-            result_te_not_summer = calculator.batch_calculate_transfered_energy(
-                df_ami2, delta_kWh, "not_summer", 損失率, consider_large_consumer
+        # 超約費用計算，但通常都是夏月超約比較多，所以通常2循環影響不大
+        if config["儲能系統"]["每日最大循環次數"] == 1:
+            annual_penalty_list = config_loader.calculate_annual_capacity_penalties(
+                delta_kWh,
+                max_summer_over_1,
+                max_not_summer_over_1,
+                penality_result,
+                損失率,
             )
-            非夏月可以轉移度數 = result_te_not_summer["可轉移電量"]
-            非夏月每日用電大戶放電度數 = result_te_not_summer["用電大戶義務可轉移電量"]
+        else:
+            # print(f"[debug] 非夏月最大超約: {max(max_not_summer_over_2_1, max_not_summer_over_2_2)} kWh")
+            annual_penalty_list = config_loader.calculate_annual_capacity_penalties(
+                delta_kWh,
+                max_summer_over_1,
+                max(max_not_summer_over_2_1, max_not_summer_over_2_2),
+                penality_result,
+                損失率,
+            )
+
+        df_summary.loc["超約費用"] = annual_penalty_list
 
         # print('非夏月可以轉移度數', 非夏月可以轉移度數)
         # print(pd.DataFrame({'夏月': 夏月每日可以轉移度數, '非夏月': 非夏月可以轉移度數, '可用容量': delta_kWh.values}))
@@ -361,8 +407,9 @@ def generate_summary(
         抑低契約容量 = []
         # #print(df_ami2)
         for avail_kWh in delta_kWh:
-            df_result, dr_kw = calculator.calculate_dr_capacity(
+            _, dr_kw = calculator.calculate_dr_capacity(
                 df_ami,
+                df_ami2,
                 config["日選時段型"]["開始時段"],
                 config["日選時段型"]["結束時段"],
                 config["日選時段型"]["執行時數"],
@@ -481,11 +528,13 @@ def generate_summary(
     if "自定義收益" in row_labels:
         # 這裡可以加入自定義收益的計算邏輯
         # 例如：df_summary.loc["自定義收益"] = [1000] * years
-        df_summary.loc["自定義收益"] = [config["自定義收益(年收/省)"]["自定義收益"]] * years
+        df_summary.loc["自定義收益"] = [
+            config["自定義收益(年收/省)"]["自定義收益"]
+        ] * years
 
     # === 小計總收入 ===
     income_rows = [
-        "降契約容量",
+        "降契約容量收益",
         "電價差收益",
         "日選時段型",
         "輔助服務價金",
@@ -564,6 +613,7 @@ def generate_summary(
 
     # === 小計總支出 ===
     expense_rows = [
+        "超約費用",
         "土地租金",
         "保險費用",
         "維運+監控EMS費用",
@@ -584,6 +634,45 @@ def generate_summary(
 
     # === Net Cash ===
     df_summary.loc["Net Cash"] = df_summary.loc["總收入"] - df_summary.loc["總支出"]
+
+    # 更新config 的 電價試算結果
+
+    # 充電成本
+    rtt_lost_kwh = (
+        夏月天數 * 夏月每日可以轉移度數 * 損失率
+        + 非夏月天數 * 非夏月可以轉移度數 * 損失率
+    )
+
+    config["電價試算"]["應用儲能"]["年用電度數"] = (
+        config["電價試算"]["原始"]["年用電度數"] + rtt_lost_kwh.mean().round()
+    )
+
+    total_base_fee_saving = (
+        df_summary.loc["降契約容量收益"].mean() - df_summary.loc["超約費用"].mean()
+    )
+
+    config["電價試算"]["應用儲能"]["年基本電費"] = (
+        config["電價試算"]["原始"]["年基本電費"] - total_base_fee_saving
+    )
+
+    total_fee_saving = sum(
+        df_summary.loc[row].mean()
+        for row in ["電價差收益", "日選時段型", "用電大戶收益"]
+        if row in df_summary.index
+    )
+
+    config["電價試算"]["應用儲能"]["年流動電費"] = round(
+        config["電價試算"]["原始"]["年流動電費"] - total_fee_saving
+    )
+    config["電價試算"]["應用儲能"]["年總電費"] = round(
+        config["電價試算"]["應用儲能"]["年基本電費"]
+        + config["電價試算"]["應用儲能"]["年流動電費"]
+    )
+    config["電價試算"]["應用儲能"]["年平均電費"] = round(
+        config["電價試算"]["應用儲能"]["年總電費"]
+        / config["電價試算"]["應用儲能"]["年用電度數"],
+        2,
+    )
 
     # #print("Summary DataFrame:")
     # #print(df_summary)
@@ -724,7 +813,7 @@ def run_simulation(
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"DEBUG: [run_simulation] completed in {execution_time:.2f} sec")
-    return result, df_summary
+    return result, df_summary, config
 
 
 def run_and_store(mode_key, 台數, df, results, mode, dict_summary, gain, config):
@@ -848,9 +937,9 @@ def run_all_simulations(
     tariff_adjust_factor,
     df_tou_2025,
     units,
-    dr方案選項=["2h", "4h", "6h"],
+    dr方案選項=["2h"],
     即時備轉方案選項=["single", "agg"],
-    用電大戶方案=["義務時數型", "累進回饋型"],
+    用電大戶方案=["義務時數型"],
     year=15,
 ):
     # === input 檢查 ===
@@ -917,17 +1006,44 @@ def run_all_simulations(
         config = config_loader.load_config()
 
     # set config 參數，注意，如果是改基本參數，要回首頁改，這邊能改的財務試算的那些參數
-    # TODO: 真正排程影響到的契約容量是寫在這邊的config，目前是用原本的設定去跑
-    # 設定主要契約容量
+
+    # 設定電價方案
+    config["電價方案"]["契約容量"]["old"]["經常契約"] = contract_capacity_old[
+        "經常契約"
+    ]
+    config["電價方案"]["契約容量"]["old"]["半尖峰契約/非夏月契約"] = (
+        contract_capacity_old["半尖峰契約/非夏月契約"]
+    )
+    config["電價方案"]["契約容量"]["old"]["週六半尖峰契約"] = contract_capacity_old[
+        "週六半尖峰契約"
+    ]
+    config["電價方案"]["契約容量"]["old"]["離峰契約"] = contract_capacity_old[
+        "離峰契約"
+    ]
+
+    config["電價方案"]["契約容量"]["new"]["經常契約"] = contract_capacity_new[
+        "經常契約"
+    ]
+    config["電價方案"]["契約容量"]["new"]["半尖峰契約/非夏月契約"] = (
+        contract_capacity_new["半尖峰契約/非夏月契約"]
+    )
+    config["電價方案"]["契約容量"]["new"]["週六半尖峰契約"] = contract_capacity_new[
+        "週六半尖峰契約"
+    ]
+    config["電價方案"]["契約容量"]["new"]["離峰契約"] = contract_capacity_new[
+        "離峰契約"
+    ]
+
+    # 主要契約容量，用於縮放 AMI 數據
     main_contract_capacity = contract_capacity_old["經常契約"]
-    config["電價方案"]["契約容量"] = main_contract_capacity
+
     config["電價方案"]["計費類別"] = tou_program
     config["電價方案"]["行業別"] = industry_class
     config["電價方案"]["電費調整係數"] = tariff_adjust_factor
     # 用電大戶義務
-    if main_contract_capacity >= 5000:
+    if contract_capacity_new["經常契約"] >= 5000:
         config["再生能源義務用戶"]["義務裝置容量"] = (
-            config["電價方案"]["契約容量"]
+            config["電價方案"]["契約容量"]["new"]["經常契約"]
             * config["再生能源義務用戶"]["義務裝置容量比例"]
             / 100
             * (
@@ -981,7 +1097,9 @@ def run_all_simulations(
         # 关闭数据库连接
         conn.close()
         end_time = time.time()
-        print(f"DEBUG: finished reading ami db, execution_time: {(end_time-start_time):.2f}s")
+        print(
+            f"DEBUG: finished reading ami db, execution_time: {(end_time-start_time):.2f}s"
+        )
         df_ami_raw["variable"] = pd.to_datetime(
             df_ami_raw["variable"], format="%H:%M:%S.%f"
         ).dt.strftime("%H:%M")
@@ -1001,6 +1119,26 @@ def run_all_simulations(
         contract_capacity_new,
         tariff_adjust_factor,
     )
+
+    # 取出降契約容量收益
+    config["電價試算"]["原始"]["年用電度數"] = dict_annual_cost_summary[
+        "年用電度數(度)"
+    ]
+    config["電價試算"]["原始"]["年基本電費"] = dict_annual_cost_summary[
+        "年基本電費(元)"
+    ]
+    config["電價試算"]["原始"]["年流動電費"] = dict_annual_cost_summary[
+        "年流動電費(元)"
+    ]
+    config["電價試算"]["原始"]["年總電費"] = dict_annual_cost_summary["年總電費(元)"]
+    config["電價試算"]["原始"]["年平均電費"] = dict_annual_cost_summary[
+        "年平均電費(元/度)"
+    ]
+
+    # 總表的降契約容量收益，來自於此function的計算結果
+    config["降低契約容量"]["年節省基本電費"] = dict_annual_cost_summary[
+        "年節省基本電費_契約調整(元)"
+    ]
 
     # 依據契約容量，決定台數
     if units is None:
