@@ -83,10 +83,6 @@ Frontend managed by PNPM with `pnpm-workspace.yaml`:
 
 ## Environment Setup
 
-### Required Environment Variables
-
-- `POSTGRES_URL`: Database connection (managed via SST Secrets)
-
 ### AWS Configuration
 
 - Uses profiles: `calc-poxa-staging` and `calc-poxa-production`

@@ -5,18 +5,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "CalcApiGateway": {
-      "type": "sst.aws.ApiGatewayV1"
-      "url": string
-    }
-    "POSTGRES_URL": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "poxa-calc": {
-      "name": string
-      "type": "sst.aws.Bucket"
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />

@@ -6,8 +6,8 @@ const API_PLAN = {
   poxa: {
     name: "poxa-plan",
     throttle: {
-      rate: 100,
-      burst: 250,
+      rate: 5000,
+      burst: 2000,
     },
   },
 };
@@ -15,10 +15,21 @@ const API_PLAN = {
 // domian
 const PROD_DOMAIN = "api.calc.poxa.app";
 const STAGING_DOMAIN = "staging.api.calc.poxa.app";
+// cert arn
+const PROD_CERT_ARN =
+  "arn:aws:acm:ap-northeast-1:485526649122:certificate/34bb6dbf-24cd-4fe8-9b42-424f2548ee3f";
+const STAGING_CERT_ARN =
+  "arn:aws:acm:ap-northeast-1:904610147815:certificate/b1c6e338-6092-446c-a4ad-4aa19e469f08";
 // bucket name
 const AWS_BUCKET_NAME = "poxa-calc";
 // bucket cors setting
-const PROD_BUCKET_CORS = [];
+const PROD_BUCKET_CORS: BucketArgs["cors"] = {
+  allowHeaders: ["*"],
+  allowMethods: ["GET", "PUT"],
+  allowOrigins: ["https://calc.poxa.io"],
+  exposeHeaders: ["ETag"],
+  maxAge: "3000 seconds",
+};
 const STAGING_BUCKET_CORS: BucketArgs["cors"] = {
   allowHeaders: ["*"],
   allowMethods: ["GET", "PUT"],
@@ -26,7 +37,6 @@ const STAGING_BUCKET_CORS: BucketArgs["cors"] = {
   exposeHeaders: ["ETag"],
   maxAge: "3000 seconds",
 };
-const ESS_IRR_EVALUATION = "ess-irr-evaluation";
 const RUN_SIMULATION = "run-simulation";
 
 const APIs: Record<
@@ -60,6 +70,26 @@ const APIs: Record<
   },
 };
 
+function varByStage(stage: string) {
+  switch (stage) {
+    case "production":
+      return {
+        domainName: PROD_DOMAIN,
+        certArn: PROD_CERT_ARN,
+        s3Cors: PROD_BUCKET_CORS,
+      };
+    case "staging":
+      return {
+        domainName: STAGING_DOMAIN,
+        certArn: STAGING_CERT_ARN,
+        s3Cors: STAGING_BUCKET_CORS,
+      };
+    default:
+      console.error("Invalid stage");
+      return {};
+  }
+}
+
 export default $config({
   app(input) {
     return {
@@ -76,16 +106,15 @@ export default $config({
   },
   async run() {
     const stage = $app.stage;
-    const domainName = stage === "production" ? PROD_DOMAIN : STAGING_DOMAIN;
-    const certArn =
-      stage === "production"
-        ? "arn:aws:acm:ap-northeast-1:485526649122:certificate/34bb6dbf-24cd-4fe8-9b42-424f2548ee3f"
-        : "arn:aws:acm:ap-northeast-1:904610147815:certificate/b1c6e338-6092-446c-a4ad-4aa19e469f08";
-    const POSTGRES_URL = new sst.Secret("POSTGRES_URL").value;
+    if (stage !== "production" && stage !== "staging") {
+      throw new Error("Invalid stage, you must declare the stage as 'production' or 'staging'");
+    }
+
+    const { domainName, certArn, s3Cors } = varByStage(stage);
 
     // S3
     const bucket = new sst.aws.Bucket(AWS_BUCKET_NAME, {
-      cors: STAGING_BUCKET_CORS,
+      cors: s3Cors,
     });
 
     // API Gateway
@@ -110,7 +139,6 @@ export default $config({
       APIs.runSimulation.v1.route,
       {
         ...APIs.runSimulation.v1.handler,
-        environment: { POSTGRES_URL },
       },
       { ...APIs.runSimulation.v1.args }
     );

@@ -35,15 +35,21 @@ region = ap-northeast-1
 
 ### Secret config
 
-POSTGRES_URL=postgresql+asyncpg://<USER>:<PWD>@<URL>/<DB>
+none
 
 #### list out the secret you have set
 
-`$ sst secret list`
+##### staging
+
+`$ pnpm sst secret list --stage staging`
+
+##### production
+
+`$ pnpm sst secret list --stage production`
 
 ## Development
 
-### start the backend server
+### start the backend server (DEPRECATED)
 
 from the root of the project
 
@@ -51,7 +57,7 @@ from the root of the project
 PYTHONPATH=./backend uv run fastapi dev backend/server/main.py
 ```
 
-### Generate SQLAlchemy models from existing database
+### Generate SQLAlchemy models from existing database (DEPRECATED)
 
 Use the `pg-pull.sh` script to generate models from your PostgreSQL database:
 
@@ -64,7 +70,7 @@ Use the `pg-pull.sh` script to generate models from your PostgreSQL database:
 ```
 
 **Prerequisites:**
-- Create `backend/server/.env` with `POSTGRES_URL`
+
 - Generated models will be saved to `backend/shared/models/generated_models.py`
 - Original models will be backed up automatically
 
@@ -86,4 +92,8 @@ login to correct profile
 
 #### staging
 
-`$ sst deploy --stage staging`
+`$ pnpm sst deploy --stage staging`
+
+#### production
+
+`$ pnpm sst deploy --stage staging`

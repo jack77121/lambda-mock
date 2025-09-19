@@ -7,7 +7,6 @@ members = [
     "poxa-calc-backend",
     "server",
     "shared",
-    "v1-lambda-ess-irr-evaluation",
     "v1-lambda-run-simulation",
 ]
 
@@ -1013,31 +1012,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/ca/0864176a649838b838f36d44bf31c451597ab363b60dc9e09c9630619d41/uvloop-0.21.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8a375441696e2eda1c43c44ccb66e04d61ceeffcd76e4929e527b7fa401b90fb", size = 3973185, upload-time = "2024-10-14T23:37:40.226Z" },
     { url = "https://files.pythonhosted.org/packages/30/bf/08ad29979a936d63787ba47a540de2132169f140d54aa25bc8c3df3e67f4/uvloop-0.21.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:baa0e6291d91649c6ba4ed4b2f982f9fa165b5bbd50a9e203c416a2797bab3c6", size = 3820256, upload-time = "2024-10-14T23:37:42.839Z" },
     { url = "https://files.pythonhosted.org/packages/da/e2/5cf6ef37e3daf2f06e651aae5ea108ad30df3cb269102678b61ebf1fdf42/uvloop-0.21.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:4509360fcc4c3bd2c70d87573ad472de40c13387f5fda8cb58350a1d7475e58d", size = 3937323, upload-time = "2024-10-14T23:37:45.337Z" },
-]
-
-[[package]]
-name = "v1-lambda-ess-irr-evaluation"
-version = "0.1.0"
-source = { editable = "v1_lambda_ess_irr_evaluation" }
-dependencies = [
-    { name = "asyncpg" },
-    { name = "aws-lambda-powertools" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "shared" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "sst" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncpg" },
-    { name = "aws-lambda-powertools", specifier = ">=3.19.0" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "python-dotenv" },
-    { name = "shared", editable = "shared" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.0" },
-    { name = "sst", git = "https://github.com/sst/sst.git?subdirectory=sdk%2Fpython&branch=dev" },
 ]
 
 [[package]]
