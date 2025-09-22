@@ -17,7 +17,7 @@ const PROD_DOMAIN = "api.calc.poxa.app";
 const STAGING_DOMAIN = "staging.api.calc.poxa.app";
 // cert arn
 const PROD_CERT_ARN =
-  "arn:aws:acm:ap-northeast-1:485526649122:certificate/34bb6dbf-24cd-4fe8-9b42-424f2548ee3f";
+  "arn:aws:acm:ap-northeast-1:485526649122:certificate/972045b7-7d52-46a4-a7b0-b06fc1f39deb";
 const STAGING_CERT_ARN =
   "arn:aws:acm:ap-northeast-1:904610147815:certificate/b1c6e338-6092-446c-a4ad-4aa19e469f08";
 // bucket name
